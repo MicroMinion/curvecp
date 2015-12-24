@@ -1,0 +1,26 @@
+{
+  "name": "curvecp",
+  "version": "1.0.0",
+  "description": "Pure javascript CurveCP library",
+  "main": "lib/index.js",
+  "directories": {
+    "example": "examples"
+  },
+  "scripts": {},
+  "keywords": [
+    "curvecp"
+  ],
+  "author": "Thomas Delaet <thomas@delaet.org>",
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "browser-process-hrtime": "^0.1.2",
+    "debug": "^2.2.0",
+    "extend.js": "0.0.2",
+    "inherits": "^2.0.1",
+    "int64-buffer": "^0.1.1",
+    "isbuffer": "0.0.0",
+    "lodash": "^3.10.1",
+    "nanotimer": "^0.3.13",
+    "tweetnacl": "^0.13.2"
+  }
+}
