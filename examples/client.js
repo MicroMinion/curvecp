@@ -46,6 +46,7 @@ var connection = new UDPStream()
 var packetStream = new PacketStream({
   stream: connection,
   is_server: false,
+  serverName: process.env.SERVER_NAME,
   serverPublicKey: nacl.util.decodeBase64(process.env.SERVER_KEY),
   clientPublicKey: keypair.publicKey,
   clientPrivateKey: keypair.secretKey
