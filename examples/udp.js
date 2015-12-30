@@ -42,7 +42,7 @@ UDPServer.prototype.connect = function (rinfo, serverKey) {
   this.streams[this.getKey(rinfo)] = new UDPStream(rinfo, this)
   var packetStream = new PacketStream({
     stream: this.streams[this.getKey(rinfo)],
-    is_server: false,
+    isServer: false,
     serverPublicKey: serverKey,
     clientPublicKey: this.keypair.publicKey,
     clientPrivateKey: this.keypair.secretKey
@@ -69,7 +69,7 @@ UDPServer.prototype.createStream = function (rinfo) {
     })
     var packetStream = new PacketStream({
       stream: this.streams[key],
-      is_server: true,
+      isServer: true,
       serverPublicKey: this.keypair.publicKey,
       serverPrivateKey: this.keypair.secretKey
     })
