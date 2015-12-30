@@ -5,6 +5,7 @@ var Duplex = require('stream').Duplex
 var PacketStream = require('../lib/packet-stream.js')
 var MessageStream = require('../lib/message-stream.js')
 var nacl = require('tweetnacl')
+var events = require('events')
 
 var UDPServer = function () {
   this.socket = dgram.createSocket('udp4')
@@ -12,7 +13,10 @@ var UDPServer = function () {
   this._connectEvents()
   this.socket.bind(0)
   this.keypair = nacl.box.keyPair()
+  events.EventEmitter.call(this)
 }
+
+inherits(UDPServer, events.EventEmitter)
 
 UDPServer.prototype._connectEvents = function () {
   var server = this
@@ -46,9 +50,9 @@ UDPServer.prototype.connect = function (rinfo, serverKey) {
   var messageStream = new MessageStream(packetStream)
   messageStream.on('connect', function () {
     console.log('CurveCP connection established')
-    messageStream.write('hello world!\n')
   })
   messageStream.connect()
+  return messageStream
 }
 
 UDPServer.prototype.getPort = function () {
@@ -70,9 +74,7 @@ UDPServer.prototype.createStream = function (rinfo) {
       serverPrivateKey: this.keypair.secretKey
     })
     var messageStream = new MessageStream(packetStream)
-    messageStream.on('data', function (data) {
-      console.log(data)
-    })
+    this.emit('connect', rinfo, messageStream)
   }
 }
 
