@@ -1,7 +1,7 @@
 var UDPServer = require('./udp.js')
 var nacl = require('tweetnacl')
 
-var NB_BLOCKS = 2
+var NB_BLOCKS = 100
 var BLOCK_LENGTH = 1024
 
 var server = new UDPServer()
@@ -34,9 +34,10 @@ setTimeout(function () {
   var messageStream = client.connect({address: '127.0.0.1', port: server.getPort()}, server.keypair.publicKey)
   messageStream.on('connect', function () {
     for (var i = 0; i < NB_BLOCKS; i++) {
+      console.log('iterator: ' + i)
       var buffer = new Buffer(nacl.randomBytes(BLOCK_LENGTH))
       buffer.copy(source, i * BLOCK_LENGTH)
-      messageStream.write(source, 'buffer', function (err) {
+      messageStream.write(buffer, 'buffer', function (err) {
         console.log('BLOCK ' + i)
         if (err) {
           console.log('ERROR: ' + err)

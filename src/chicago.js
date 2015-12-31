@@ -108,7 +108,7 @@ Chicago.prototype.send_block = function () {
 
 Chicago.prototype.block_is_timed_out = function (transmission_time) {
   this._refresh_clock()
-  var clock = new Clock(transmission_time)
+  var clock = transmission_time.clone()
   clock.add(this.rtt_timeout)
   var compare_result = clock.compare(this.clock)
   if (compare_result === -1) {

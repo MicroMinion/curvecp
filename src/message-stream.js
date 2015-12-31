@@ -67,8 +67,13 @@ MessageStream.prototype._receiveData = function (data) {
     var message = new Message()
     message.fromBuffer(data)
     this._incoming.push(message)
-    this._chicago.enable_timer()
   }
+  var self = this
+  setImmediate(function () {
+    if (self.canProcessMessage()) {
+      self.processMessage()
+    }
+  })
 }
 
 MessageStream.prototype.connect = function () {
@@ -88,9 +93,6 @@ MessageStream.prototype._process = function () {
   } else if (this.canSend()) {
     this.sendBlock()
   }
-  if (this.canProcessMessage()) {
-    this.processMessage()
-  }
   if (_.isEmpty(this._incoming) && _.isEmpty(this._outgoing) && this._sendBytes.length === 0) {
     this._chicago.disable_timer()
   }
@@ -109,6 +111,8 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
     callback: done
   })
   this._sendBytes = Buffer.concat([this._sendBytes, chunk])
+  debug('_sendBytes length: ' + this._sendBytes.length)
+  debug('_sendProcessed length: ' + this._sendProcessed)
   this._chicago.enable_timer()
 }
 
@@ -119,7 +123,13 @@ MessageStream.prototype.canResend = function () {
 }
 
 MessageStream.prototype.resendBlock = function () {
-  var block = _.min(this._outgoing, 'transmission_time')
+  debug('resendBlock')
+  var block = this._outgoing[0]
+  _.forEach(this._outgoing, function (compareBlock) {
+    if (block.transmission_time.compare(compareBlock) > 0) {
+      block = compareBlock
+    }
+  })
   block.transmission_time = this._chicago.get_clock()
   block.id = this._nextMessageId()
   this._chicago.retransmission()
@@ -132,12 +142,12 @@ MessageStream.prototype.canSend = function () {
 
 MessageStream.prototype.sendBlock = function () {
   debug('sendBlock')
-  debug('sendBytes size: ' + this._sendBytes.length)
+  debug('sendBytes start: ' + this._sendBytes.length)
+  debug('sendProcessed start: ' + this._sendProcessed)
   var blockSize = this._sendBytes.length
   if (blockSize > this._maxBlockLength) {
     blockSize = this._maxBlockLength
   }
-  debug('blockSize: ' + blockSize)
   var block = new Block()
   block.start_byte = this._sendProcessed
   block.transmission_time = this._chicago.get_clock()
@@ -145,12 +155,14 @@ MessageStream.prototype.sendBlock = function () {
   block.data = this._sendBytes.slice(0, blockSize)
   this._sendBytes = this._sendBytes.slice(blockSize)
   this._sendProcessed = this._sendProcessed + block.data.length
+  debug('sendBytes stop: ' + this._sendBytes.length)
+  debug('sendProcessed stop: ' + this._sendProcessed)
   this._outgoing.push(block)
   this._sendBlock(block)
 }
 
 MessageStream.prototype._sendBlock = function (block) {
-  debug('_sendBlock')
+  debug('_sendBlock ' + block.start_byte + ' - ' + block.data.length)
   var message = new Message()
   message.id = block.id
   message.acknowledging_range_1_size = this._receivedBytes
@@ -179,19 +191,20 @@ MessageStream.prototype.processAcknowledgments = function (message) {
     return message.isAcknowledged(block.start_byte, block.data.length)
   }, this)
   _.forEach(removedList, function (block) {
+    debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
     this._chicago.acknowledgement(block.transmission_time)
   }, this)
   removedList = _.remove(this._writeRequests, function (writeRequest) {
     return message.isAcknowledged(writeRequest.startByte, writeRequest.length)
   }, this)
   _.forEach(removedList, function (writeRequest) {
-    console.log(writeRequest)
+    debug('write request acknowledged: ' + writeRequest.startByte + ' - ' + writeRequest.length)
     writeRequest.callback()
   })
 }
 
 MessageStream.prototype.sendAcknowledgment = function (message) {
-  debug('sendAcknowledgment')
+  debug('sendAcknowledgment ' + this._receivedBytes)
   var reply = new Message()
   reply.id = this._nextMessageId()
   reply.acknowledging_id = message.id
