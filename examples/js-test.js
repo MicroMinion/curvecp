@@ -1,7 +1,7 @@
 var UDPServer = require('./udp.js')
 var nacl = require('tweetnacl')
 
-var NB_BLOCKS = 1
+var NB_BLOCKS = 2
 var BLOCK_LENGTH = 1024
 
 var server = new UDPServer()
