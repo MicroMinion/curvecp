@@ -2,8 +2,8 @@ var dgram = require('dgram')
 var inherits = require('inherits')
 var _ = require('lodash')
 var Duplex = require('stream').Duplex
-var PacketStream = require('../lib/packet-stream.js')
-var MessageStream = require('../lib/message-stream.js')
+var PacketStream = require('../src/packet-stream.js')
+var MessageStream = require('../src/message-stream.js')
 var nacl = require('tweetnacl')
 var events = require('events')
 
