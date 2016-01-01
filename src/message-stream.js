@@ -33,6 +33,12 @@ var MessageStream = function (curveCPStream) {
     }, self)
     self.emit('close')
   })
+  this._stream.on('end', function () {
+    self.push(null)
+  })
+  this._stream.on('finish', function () {
+    self.emit('finish')
+  })
   this._stream.on('connect', function () {
     self.__streamReady = true
     self.emit('connect')
@@ -263,8 +269,6 @@ MessageStream.prototype._writeToStream = function (message) {
 MessageStream.prototype._processReady = function (err) {
   if (!err) {
     this.__streamReady = true
-  } else {
-    // FIXME: Handle properly
   }
 }
 

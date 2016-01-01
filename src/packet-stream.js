@@ -26,7 +26,6 @@ var PacketStream = function (opts) {
   opts.objectMode = false
   opts.decodeStrings = true
   opts.allowHalfOpen = false
-  opts.highWaterMark = 0
   this.__ourNonceCounter = 0
   this.__remoteNonceCounter = 0
   Duplex.call(this, opts)
@@ -92,18 +91,22 @@ PacketStream.prototype._connectStream = function (stream) {
       stream.removeListener('data', functions.data)
       stream.removeListener('error', functions.error)
       stream.removeListener('close', functions.close)
-      stream.removeListener('end', functions.close)
-      stream.removeListener('finish', functions.close)
-      curveStream.emit('end')
-      curveStream.emit('finish')
+      stream.removeListener('end', functions.end)
+      stream.removeListener('finish', functions.finish)
       curveStream.emit('close')
+    },
+    end: function () {
+      curveStream.emit('end')
+    },
+    finish: function () {
+      curveStream.emit('finish')
     }
   }
   stream.on('data', functions.data)
   stream.on('error', functions.error)
   stream.on('close', functions.close)
-  stream.on('finish', functions.close)
-  stream.on('end', functions.close)
+  stream.on('finish', functions.finish)
+  stream.on('end', functions.end)
 }
 
 PacketStream.prototype._onMessage = function (message) {

@@ -97,9 +97,7 @@ UDPStream.prototype._write = function (chunk, encoding, done) {
 }
 UDPStream.prototype.error = function (errorMessage) {
   console.log('ERROR')
-  // console.log(errorMessage)
   this.emit('error', new Error(errorMessage))
-  this.emit('end')
   this.emit('close')
 }
 
