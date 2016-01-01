@@ -1,13 +1,13 @@
 var Chicago = require('./chicago.js')
 var Message = require('./message.js')
-var isBuffer = require('isbuffer')
 var assert = require('assert')
-var Duplex = require('stream').Duplex
+var Duplex = require('readable-stream-no-buffering').Duplex
 var inherits = require('inherits')
 var Block = require('./message-block.js')
 var _ = require('lodash')
 var debug = require('debug')('curvecp:MessageStream')
 var constants = require('./constants.js')
+var isBuffer = require('is-buffer')
 
 var MessageStream = function (curveCPStream) {
   debug('initialize')
@@ -114,6 +114,7 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
   debug('_sendBytes length: ' + this._sendBytes.length)
   debug('_sendProcessed length: ' + this._sendProcessed)
   this._chicago.enable_timer()
+  return this._sendBytes.length < constants.MAXIMUM_UNPROCESSED_SEND_BYTES
 }
 
 MessageStream.prototype.canResend = function () {
@@ -159,6 +160,11 @@ MessageStream.prototype.sendBlock = function () {
   debug('sendProcessed stop: ' + this._sendProcessed)
   this._outgoing.push(block)
   this._sendBlock(block)
+  if (this._sendBytes.length + block.data.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES * 0.5 &&
+    this._sendBytes.length < constants.MAXIMUM_UNPROCESSED_SEND_BYTES * 0.5) {
+    this.emit('drain')
+  }
+
 }
 
 MessageStream.prototype._sendBlock = function (block) {
