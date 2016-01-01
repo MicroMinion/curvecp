@@ -26,6 +26,11 @@ var MessageStream = function (curveCPStream) {
     self.emit('error', error)
   })
   this._stream.on('close', function () {
+    self.push(null)
+    self.emit('finish')
+    _.forEach(self._writeRequests, function (request) {
+      this.callback(new Error('Underlying stream closed'))
+    }, self)
     self.emit('close')
   })
   this._stream.on('connect', function () {
@@ -37,6 +42,8 @@ var MessageStream = function (curveCPStream) {
   }
   /* Bytes that still need to be processed */
   this._sendBytes = new Buffer(0)
+  this._stopSuccess = false
+  this._stopFailure = false
   this._writeRequests = []
   /* Bytes that have been processed / send to peer */
   this._sendProcessed = 0
@@ -103,6 +110,7 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
   assert(isBuffer(chunk))
   if (this._sendBytes.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES) {
     done(new Error('Buffer is full'))
+    this.emit('error', new Error('Buffer is full'))
     return
   }
   this._writeRequests.push({
@@ -115,6 +123,11 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
   debug('_sendProcessed length: ' + this._sendProcessed)
   this._chicago.enable_timer()
   return this._sendBytes.length < constants.MAXIMUM_UNPROCESSED_SEND_BYTES
+}
+
+MessageStream.prototype._end = function () {
+  this._stopSuccess = true
+  this._writableState.ended = true
 }
 
 MessageStream.prototype.canResend = function () {
@@ -154,6 +167,10 @@ MessageStream.prototype.sendBlock = function () {
   block.transmission_time = this._chicago.get_clock()
   block.id = this._nextMessageId()
   block.data = this._sendBytes.slice(0, blockSize)
+  if (this._sendBytes.length === blockSize && (this._stopSuccess || this._stopFailure)) {
+    block.stop_success = this._stopSuccess
+    block.stop_failure = this._stopFailure
+  }
   this._sendBytes = this._sendBytes.slice(blockSize)
   this._sendProcessed = this._sendProcessed + block.data.length
   debug('sendBytes stop: ' + this._sendBytes.length)
@@ -164,7 +181,6 @@ MessageStream.prototype.sendBlock = function () {
     this._sendBytes.length < constants.MAXIMUM_UNPROCESSED_SEND_BYTES * 0.5) {
     this.emit('drain')
   }
-
 }
 
 MessageStream.prototype._sendBlock = function (block) {
@@ -173,6 +189,8 @@ MessageStream.prototype._sendBlock = function (block) {
   message.id = block.id
   message.acknowledging_range_1_size = this._receivedBytes
   message.data = block.data
+  message.success = block.stop_success
+  message.failure = block.stop_failure
   message.offset = block.start_byte
   this._chicago.send_block()
   this._writeToStream(message)
@@ -207,6 +225,9 @@ MessageStream.prototype.processAcknowledgments = function (message) {
     debug('write request acknowledged: ' + writeRequest.startByte + ' - ' + writeRequest.length)
     writeRequest.callback()
   })
+  if ((this._stopSuccess || this._stopFailure) && this._sendBytes.length === 0 && this._outgoing.length === 0) {
+    this.emit('finish')
+  }
 }
 
 MessageStream.prototype.sendAcknowledgment = function (message) {
@@ -226,6 +247,9 @@ MessageStream.prototype._processMessage = function (message) {
       var data = message.data.slice(ignoreBytes)
       this._receivedBytes += data.length
       this.push(data)
+      if (message.success || message.failure) {
+        this.push(null)
+      }
       this.sendAcknowledgment(message)
     }
   }

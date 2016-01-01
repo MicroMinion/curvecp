@@ -1,7 +1,7 @@
 var UDPServer = require('./udp.js')
 var nacl = require('tweetnacl')
 
-var NB_BLOCKS = 10000
+var NB_BLOCKS = 10
 var BLOCK_LENGTH = 1024
 
 var server = new UDPServer()
@@ -23,19 +23,25 @@ server.on('connect', function (rinfo, messageStream) {
   console.log('new connection to server')
   console.log(rinfo)
   messageStream.on('data', function (data) {
-    // console.log('new data: ' + data.length)
-    // console.log('data retrieved: ' + destination.length)
+    console.log('DATA RECEIVED ON SERVER')
     destination = Buffer.concat([destination, data])
+  })
+  messageStream.on('end', function () {
+    console.log('END RECEIVED ON SERVER')
     if (!Buffer.compare(source, destination)) {
       console.log('IDENTICAL BUFFER MATCH FOUND')
-      process.exit(0)
+    } else {
+      console.log('BUFFERS DO NOT MATCH')
     }
+  })
+  messageStream.on('finish', function () {
+    console.log('FINISH RECEIVED ON SERVER')
   })
 })
 
 var write = function () {
   var canContinue = currentBlock < NB_BLOCKS
-  while(canContinue) {
+  while (canContinue) {
     // console.log(currentBlock)
     var buffer = new Buffer(BLOCK_LENGTH)
     source.copy(buffer, 0, currentBlock * BLOCK_LENGTH, (currentBlock + 1) * BLOCK_LENGTH)
@@ -48,6 +54,9 @@ var write = function () {
     })
     currentBlock += 1
     canContinue = result && currentBlock < NB_BLOCKS
+    if (currentBlock === NB_BLOCKS) {
+      messageStream.end()
+    }
   }
 }
 
@@ -60,5 +69,11 @@ setTimeout(function () {
   messageStream.on('connect', function () {
     console.log('connect event')
     write()
+  })
+  messageStream.on('end', function () {
+    console.log('END RECEIVED ON CLIENT')
+  })
+  messageStream.on('finish', function () {
+    console.log('FINISH RECEIVED ON CLIENT')
   })
 }, 1000)

@@ -50,6 +50,8 @@ Message.prototype.fromBuffer = function (buf) {
     throw new Error('Offset exceeds maximum safe integer')
   }
   this.data_length = this.flags - (this.flags & STOP)
+  this.success = Boolean((this.flags - this.data_length) & STOP_SUCCESS)
+  this.failure = Boolean((this.flags - this.data_length) & STOP_FAILURE)
   this.data = buf.slice(buf.length - this.data_length)
 }
 

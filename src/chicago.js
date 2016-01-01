@@ -310,7 +310,6 @@ Chicago.prototype._randommod = function (n) {
     result = result % n
   }
   return result
-
 }
 
 module.exports = Chicago

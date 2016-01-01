@@ -9,6 +9,9 @@ var Block = function () {
   this.id = null
   /* Actual block data (buffer) */
   this.data = null
+  /* Flags */
+  this.stop_success = false
+  this.stop_failure = false
 }
 
 Block.prototype.includedIn = function (size) {
