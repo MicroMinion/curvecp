@@ -66,12 +66,13 @@ Chicago.prototype.disable_timer = function () {
 }
 
 Chicago.prototype.enable_timer = function () {
-  this.timer_disabled = false
-  this._set_timeout()
+  if (this.timer_disabled) {
+    this.timer_disabled = false
+    this._set_timeout()
+  }
 }
 
 Chicago.prototype._timeout_callback = function () {
-  debug('_timeout_callback')
   if (this.timeout_callback) {
     this.timeout_callback()
   }
@@ -81,8 +82,7 @@ Chicago.prototype._timeout_callback = function () {
 }
 
 Chicago.prototype._set_timeout = function () {
-  debug('_set_timeout')
-  debug(this.nsecperblock)
+  debug('_set_timeout ' + this.nsecperblock)
   this.timer.setTimeout(this._timeout_callback.bind(this), [], this.nsecperblock.toString() + 'n')
 }
 
@@ -213,6 +213,7 @@ Chicago.prototype._adjustment_cycle_has_completed = function () {
 }
 
 Chicago.prototype._reinitialize_lastspeedadjustment = function () {
+  debug('_reinitialize_lastspeedadjustment ' + this.nsecperblock)
   if (this.clock.subtract(this.lastspeedadjustment) > 10 * constants.SECOND) {
     this.nsecperblock = constants.SECOND /* slow restart */
     this.nsecperblock = _safe_integer_addition(this.nsecperblock, this._randommod(this.nsecperblock / 8))
@@ -221,6 +222,7 @@ Chicago.prototype._reinitialize_lastspeedadjustment = function () {
 }
 
 Chicago.prototype._apply_additive_increase = function () {
+  debug('_apply_additive_increase ' + this.nsecperblock)
   if (this.nsecperblock >= 131072) {
     /* additive increase: adjust 1/N by a constant c */
     /* rtt-fair additive increase: adjust 1/N by a constant c every nanosecond */
@@ -239,6 +241,7 @@ Chicago.prototype._apply_additive_increase = function () {
 }
 
 Chicago.prototype._phase_events = function () {
+  debug('_phase_events ' + this.nsecperblock)
   if (this.rtt_phase === 0) {
     if (this.rtt_seenolderhigh) {
       this.rtt_phase = 1
@@ -260,6 +263,7 @@ Chicago.prototype._update_seen_watermarks = function () {
 }
 
 Chicago.prototype._apply_rate_doubling = function () {
+  debug('_apply_rate_doubling ' + this.nsecperblock)
   var compareClock
   var result
   while (true) {
@@ -302,9 +306,11 @@ Chicago.prototype._randommod = function (n) {
   }
   var randomBytes = nacl.randomBytes(32)
   for (var j = 0; j < 32; ++j) {
-    result = _safe_integer_addition(_safe_integer_multiplication(result, 256), Number(randomBytes[j] % n))
+    result = _safe_integer_addition(_safe_integer_multiplication(result, 256), Number(randomBytes[j]))
+    result = result % n
   }
   return result
+
 }
 
 module.exports = Chicago
