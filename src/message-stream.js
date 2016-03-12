@@ -252,6 +252,7 @@ MessageStream.prototype._processMessage = function (message) {
       var ignoreBytes = this._receivedBytes - message.offset
       var data = message.data.slice(ignoreBytes)
       this._receivedBytes += data.length
+      // debug(data.toString())
       this.push(data)
       if (message.success || message.failure) {
         this.push(null)
