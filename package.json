@@ -23,6 +23,7 @@
     "lodash": "^3.10.1",
     "nanotimer": "^0.3.13",
     "readable-stream-no-buffering": "^2.0.6",
-    "tweetnacl": "^0.13.2"
+    "tweetnacl": "^0.13.2",
+    "tweetnacl-util": "^0.13.3"
   }
 }
