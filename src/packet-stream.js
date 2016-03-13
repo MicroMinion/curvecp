@@ -6,6 +6,7 @@ var debug = require('debug')('curvecp:PacketStream')
 var Uint64BE = require('int64-buffer').Uint64BE
 var nacl = require('tweetnacl')
 var crypto = require('crypto')
+nacl.util = require('tweetnacl-util')
 
 var HELLO_MSG = nacl.util.decodeUTF8('QvnQ5XlH')
 var COOKIE_MSG = nacl.util.decodeUTF8('RL3aNMXK')
@@ -88,25 +89,29 @@ PacketStream.prototype._connectStream = function (stream) {
       curveStream.emit('error', err)
     },
     close: function () {
-      stream.removeListener('data', functions.data)
-      stream.removeListener('error', functions.error)
-      stream.removeListener('close', functions.close)
-      stream.removeListener('end', functions.end)
-      stream.removeListener('finish', functions.finish)
+      stream.removeAllListeners()
       curveStream.emit('close')
     },
     end: function () {
       curveStream.emit('end')
     },
-    finish: function () {
-      curveStream.emit('finish')
+    drain: function () {
+      curveStream.emit('drain')
+    },
+    lookup: function (err, address, family) {
+      curveStream.emit('lookup', err, address, family)
+    },
+    timeout: function () {
+      curveStream.emit('timeout')
     }
   }
   stream.on('data', functions.data)
   stream.on('error', functions.error)
   stream.on('close', functions.close)
-  stream.on('finish', functions.finish)
   stream.on('end', functions.end)
+  stream.on('drain', functions.drain)
+  stream.on('lookup', functions.lookup)
+  stream.on('timeout', functions.timeout)
 }
 
 PacketStream.prototype._onMessage = function (message) {
@@ -163,11 +168,26 @@ PacketStream.prototype._onMessageServer = function (message) {
   }
 }
 
-PacketStream.prototype.connect = function () {
+PacketStream.prototype.connect = function (publicKey, connectionInfo) {
   debug('connect')
+  var self = this
   if (!this.isServer) {
-    this._sendHello()
+    this.serverPublicKey = nacl.util.decodeBase64(publicKey)
   }
+  if (this._stream.isConnected()) {
+    if (!this.isServer) {
+      this._sendHello()
+    }
+  } else {
+    this._stream.once('connect', function () {
+      self.connect(publicKey, connectionInfo)
+    })
+    this._stream.connect(connectionInfo)
+  }
+}
+
+PacketStream.prototype.isConnected = function () {
+  return this.__canSend
 }
 
 PacketStream.prototype.destroy = function () {
@@ -229,7 +249,7 @@ PacketStream.prototype._decrypt = function (source, prefix, from, to) {
     nonce.set(short_nonce, prefix.length)
     var result = nacl.box.open(source.subarray(nonce_length), nonce, from, to)
   } catch (err) {
-    this.connectionFail('Decrypt failed with error ' + err)
+    this.emit('error', new Error('Decrypt failed with error ' + err))
   }
   return result
 }
@@ -494,5 +514,15 @@ PacketStream.prototype._onClientMessage = function (message) {
   var buffer = new Buffer(boxData)
   this.push(buffer)
 }
+
+Object.defineProperty(PacketStream.prototype, 'remoteAddress', {
+  get: function () {
+    if (this.isServer) {
+      return nacl.util.encodeBase64(this.clientPublicKey)
+    } else {
+      return nacl.util.encodeBase64(this.serverPublicKey)
+    }
+  }
+})
 
 module.exports = PacketStream

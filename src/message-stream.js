@@ -9,7 +9,7 @@ var debug = require('debug')('curvecp:MessageStream')
 var constants = require('./constants.js')
 var isBuffer = require('is-buffer')
 
-var MessageStream = function (curveCPStream) {
+var MessageStream = function (options) {
   debug('initialize')
   var opts = {}
   opts.objectMode = false
@@ -18,7 +18,7 @@ var MessageStream = function (curveCPStream) {
   opts.highWaterMark = 0
   Duplex.call(this, opts)
   this._maxBlockLength = 640 - constants.HEADER_SIZE - constants.MINIMAL_PADDING
-  this._stream = curveCPStream
+  this._stream = options.stream
   this.__streamReady = false
   var self = this
   this._stream.on('data', this._receiveData.bind(this))
@@ -27,7 +27,6 @@ var MessageStream = function (curveCPStream) {
   })
   this._stream.on('close', function () {
     self.push(null)
-    self.emit('finish')
     _.forEach(self._writeRequests, function (request) {
       this.callback(new Error('Underlying stream closed'))
     }, self)
@@ -36,12 +35,15 @@ var MessageStream = function (curveCPStream) {
   this._stream.on('end', function () {
     self.push(null)
   })
-  this._stream.on('finish', function () {
-    self.emit('finish')
-  })
   this._stream.on('connect', function () {
     self.__streamReady = true
     self.emit('connect')
+  })
+  this._stream.on('lookup', function (err, address, family) {
+    self.emit('lookup', err, address, family)
+  })
+  this._stream.on('timeout', function () {
+    self.emit('timeout')
   })
   if (this._stream.is_server) {
     this._maxBlockLength = constants.MESSAGE_BODY
@@ -89,8 +91,12 @@ MessageStream.prototype._receiveData = function (data) {
   })
 }
 
-MessageStream.prototype.connect = function () {
-  this._stream.connect()
+MessageStream.prototype.connect = function (publicKey, connectionInfo) {
+  this._stream.connect(publicKey, connectionInfo)
+}
+
+MessageStream.prototype.isConnected = function () {
+  return this._stream.isConnected()
 }
 
 MessageStream.prototype.destroy = function () {
@@ -272,5 +278,11 @@ MessageStream.prototype._processReady = function (err) {
     this.__streamReady = true
   }
 }
+
+Object.defineProperty(MessageStream.prototype, 'remoteAddress', {
+  get: function () {
+    return this._stream.remoteAddress
+  }
+})
 
 module.exports = MessageStream
