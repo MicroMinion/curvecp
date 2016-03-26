@@ -174,15 +174,15 @@ PacketStream.prototype.connect = function (publicKey, connectionInfo) {
   if (!this.isServer) {
     this.serverPublicKey = nacl.util.decodeBase64(publicKey)
   }
-  if (this._stream.isConnected()) {
+  if (this.stream.isConnected()) {
     if (!this.isServer) {
       this._sendHello()
     }
   } else {
-    this._stream.once('connect', function () {
+    this.stream.once('connect', function () {
       self.connect(publicKey, connectionInfo)
     })
-    this._stream.connect(connectionInfo)
+    this.stream.connect(connectionInfo)
   }
 }
 
