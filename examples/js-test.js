@@ -51,8 +51,8 @@ server.on('connection', function (socket) {
   })
   messageStreamServer.on('end', function () {
     console.log('END RECEIVED ON SERVER')
-    console.log(nacl.util.encodeBase64(source))
-    console.log(nacl.util.encodeBase64(destination))
+    // console.log(nacl.util.encodeBase64(source))
+    // console.log(nacl.util.encodeBase64(destination))
     if (!Buffer.compare(source, destination)) {
       console.log('IDENTICAL BUFFER MATCH FOUND')
     } else {
@@ -61,6 +61,7 @@ server.on('connection', function (socket) {
   })
   messageStreamServer.on('finish', function () {
     console.log('FINISH RECEIVED ON SERVER')
+    process.exit(0)
   })
   writeServer()
 })
@@ -125,12 +126,12 @@ server.on('listening', function () {
   })
   messageStream.on('drain', function () {
     console.log('drain event')
-  // write()
+    write()
   })
   messageStream.on('connect', function () {
     console.log('connect event')
-    messageStream.write(new Buffer('test'))
-  // write()
+    // messageStream.write(new Buffer('test'))
+    write()
   })
   messageStream.on('finish', function () {
     console.log('FINISH RECEIVED ON CLIENT')
@@ -143,8 +144,8 @@ server.on('listening', function () {
     console.log('END RECEIVED ON CLIENT')
     console.log(sourceServer.length)
     console.log(destinationClient.length)
-    console.log(nacl.util.encodeBase64(sourceServer))
-    console.log(nacl.util.encodeBase64(destinationClient))
+    // console.log(nacl.util.encodeBase64(sourceServer))
+    // console.log(nacl.util.encodeBase64(destinationClient))
     if (!Buffer.compare(sourceServer, destinationClient)) {
       console.log('IDENTICAL BUFFER MATCH FOUND ON CLIENT')
     } else {
