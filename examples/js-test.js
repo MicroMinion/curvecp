@@ -1,11 +1,17 @@
-var UDPServer = require('./udp.js')
+var net = require('net-udp')
 var nacl = require('tweetnacl')
+var PacketStream = require('../src/packet-stream.js')
+var MessageStream = require('../src/message-stream.js')
+nacl.util = require('tweetnacl-util')
 
 var NB_BLOCKS = 100
 var BLOCK_LENGTH = 1024
 
-var server = new UDPServer()
-var client = new UDPServer()
+var server = net.createServer()
+var client = new net.Socket()
+
+var serverKeyPair = nacl.box.keyPair()
+var clientKeyPair = nacl.box.keyPair()
 
 var source = Buffer(NB_BLOCKS * BLOCK_LENGTH)
 var sourceServer = Buffer(NB_BLOCKS * BLOCK_LENGTH)
@@ -28,21 +34,22 @@ var messageStreamServer
 var destination = Buffer(0)
 var destinationClient = Buffer(0)
 
-server.on('connect', function (rinfo, messageStream) {
+server.on('connection', function (socket) {
   console.log('new connection to server')
-  console.log(rinfo)
-  /* messageStream.on('connect', function () {
-    writeServer()
+  var packetStream = new PacketStream({
+    stream: socket,
+    isServer: true,
+    serverPublicKey: serverKeyPair.publicKey,
+    serverPrivateKey: serverKeyPair.secretKey
   })
-  messageStream.on('drain', function () {
-    writeServer()
+  messageStreamServer = new MessageStream({
+    stream: packetStream
   })
-  */
-  messageStream.on('data', function (data) {
+  messageStreamServer.on('data', function (data) {
     console.log('DATA RECEIVED ON SERVER')
     destination = Buffer.concat([destination, data])
   })
-  messageStream.on('end', function () {
+  messageStreamServer.on('end', function () {
     console.log('END RECEIVED ON SERVER')
     console.log(nacl.util.encodeBase64(source))
     console.log(nacl.util.encodeBase64(destination))
@@ -52,10 +59,9 @@ server.on('connect', function (rinfo, messageStream) {
       console.log('BUFFERS DO NOT MATCH')
     }
   })
-  messageStream.on('finish', function () {
+  messageStreamServer.on('finish', function () {
     console.log('FINISH RECEIVED ON SERVER')
   })
-  messageStreamServer = messageStream
   writeServer()
 })
 
@@ -101,8 +107,22 @@ var writeServer = function () {
   }
 }
 
-setTimeout(function () {
-  messageStream = client.connect({address: '127.0.0.1', port: server.getPort()}, server.keypair.publicKey)
+server.on('listening', function () {
+  console.log('server listening')
+  var packetStream = new PacketStream({
+    stream: client,
+    isServer: false,
+    serverPublicKey: serverKeyPair.publicKey,
+    clientPublicKey: clientKeyPair.publicKey,
+    clientPrivateKey: clientKeyPair.secretKey
+  })
+  messageStream = new MessageStream({
+    stream: packetStream
+  })
+  client.on('data', function (msg) {
+    console.log('message received on client')
+    console.log(msg.length)
+  })
   messageStream.on('drain', function () {
     console.log('drain event')
   // write()
@@ -131,4 +151,10 @@ setTimeout(function () {
       console.log('BUFFERS DO NOT MATCH ON CLIENT')
     }
   })
-}, 1000)
+  messageStream.connect(nacl.util.encodeBase64(serverKeyPair.publicKey), {address: '127.0.0.1', port: server.address().port})
+  setTimeout(function () {
+    console.log(client.remotePort)
+  }, 500)
+})
+
+server.listen()
