@@ -91,8 +91,8 @@ MessageStream.prototype._receiveData = function (data) {
   })
 }
 
-MessageStream.prototype.connect = function (publicKey, connectionInfo) {
-  this._stream.connect(publicKey, connectionInfo)
+MessageStream.prototype.connect = function (connectionInfo) {
+  this._stream.connect(connectionInfo)
 }
 
 MessageStream.prototype.isConnected = function () {

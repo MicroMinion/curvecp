@@ -168,11 +168,12 @@ PacketStream.prototype._onMessageServer = function (message) {
   }
 }
 
-PacketStream.prototype.connect = function (publicKey, connectionInfo) {
+PacketStream.prototype.connect = function (connectionInfo) {
   debug('connect')
+  debug(connectionInfo)
   var self = this
   if (!this.isServer) {
-    this.serverPublicKey = nacl.util.decodeBase64(publicKey)
+    this.serverPublicKey = nacl.util.decodeBase64(connectionInfo.boxId)
   }
   if (this.stream.isConnected()) {
     if (!this.isServer) {
@@ -180,7 +181,8 @@ PacketStream.prototype.connect = function (publicKey, connectionInfo) {
     }
   } else {
     this.stream.once('connect', function () {
-      self.connect(publicKey, connectionInfo)
+      debug('underlying stream connected')
+      self.connect(connectionInfo)
     })
     this.stream.connect(connectionInfo)
   }
