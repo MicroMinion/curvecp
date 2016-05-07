@@ -20,7 +20,7 @@
     "inherits": "^2.0.1",
     "int64-buffer": "^0.1.1",
     "is-buffer": "^1.1.0",
-    "lodash": "^4.9.0",
+    "lodash": "^3.10.1",
     "nanotimer": "^0.3.13",
     "readable-stream-no-buffering": "^2.0.6",
     "tweetnacl": "^0.14.3",
