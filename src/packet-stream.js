@@ -312,6 +312,16 @@ PacketStream.prototype._increaseCounter = function () {
   this.__ourNonceCounter += 1
 }
 
+PacketStream.prototype.__validNonce = function (message, offset) {
+  var remoteNonce = new Uint64BE(new Buffer(message.subarray(offset, 8).reverse())).toNumber()
+  if (remoteNonce > this.__remoteNonceCounter || (this.__remoteNonceCounter === 0 && remoteNonce === 0)) {
+    this.__remoteNonceCounter = remoteNonce
+    return true
+  } else {
+    return false
+  }
+}
+
 // Hello command
 
 PacketStream.prototype._sendHello = function () {
@@ -339,6 +349,10 @@ PacketStream.prototype._onHello = function (helloMessage) {
     return
   }
   this.clientConnectionPublicKey = helloMessage.subarray(40, 40 + 32)
+  if (!this.__validNonce(helloMessage, 40 + 32 + 64)) {
+    debug('Invalid nonce received')
+    return
+  }
   var boxData = this._decrypt(helloMessage.subarray(40 + 32 + 64, 224), 'CurveCP-client-H', this.clientConnectionPublicKey, this.serverPrivateKey)
   if (boxData === undefined) {
     debug('Hello: not able to decrypt box data')
@@ -436,6 +450,10 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     debug('Initiate command has incorrect length')
     return
   }
+  if (!this.__validNonce(initiateMessage, 72 + 96)) {
+    debug('Invalid nonce received')
+    return
+  }
   if (!this._isEqual(initiateMessage.subarray(72, 72 + 96), this.__serverCookie)) {
     debug('Initiate command server cookie not recognized')
     return
@@ -479,6 +497,10 @@ PacketStream.prototype._onServerMessage = function (message) {
     debug('Message command has incorrect length')
     return
   }
+  if (!this.__validNonce(message, 40)) {
+    debug('Invalid nonce received')
+    return
+  }
   var boxData = this._decrypt(message.subarray(40), 'CurveCP-server-M', this.serverConnectionPublicKey, this.clientConnectionPrivateKey)
   if (boxData === undefined || !boxData) {
     debug('not able to decrypt box data')
@@ -506,6 +528,10 @@ PacketStream.prototype._onClientMessage = function (message) {
   debug('onClientMessage@Server ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   if (message.length < 96 || message.length > 1184) {
     debug('Message command has incorrect length')
+    return
+  }
+  if (!this.__validNonce(message, 40 + 32)) {
+    debug('Invalid nonce received')
     return
   }
   var boxData = this._decrypt(message.subarray(40 + 32), 'CurveCP-client-M', this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
