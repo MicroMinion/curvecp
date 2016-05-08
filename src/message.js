@@ -122,7 +122,7 @@ Message.prototype.toBuffer = function () {
   message.fill(0)
   message.writeUInt32BE(this.id)
   message.writeUInt32BE(this.acknowledging_id, 4)
-  new Uint64BE(this.acknowledging_range_1_size).toBuffer().copy(message, 8)
+  Uint64BE(message, 8, this.acknowledging_range_1_size)
   message.writeUInt32BE(this.acknowledging_range_12_gap, 16)
   message.writeUInt16BE(this.acknowledging_range_2_size, 20)
   message.writeUInt16BE(this.acknowledging_range_23_gap, 22)
@@ -145,7 +145,7 @@ Message.prototype.toBuffer = function () {
   }
   message.writeUInt16BE(this.flags, 38)
   if (this.data && this.data.length > 0) {
-    new Uint64BE(this.offset).toBuffer().copy(message, 40)
+    Uint64BE(message, 40, +this.offset)
     this.data.copy(message, messageSize - this.data.length)
   }
   return message
