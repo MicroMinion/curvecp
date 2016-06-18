@@ -1,6 +1,6 @@
 {
   "name": "curvecp",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Pure javascript CurveCP library",
   "main": "src/index.js",
   "repository": "git://github.com/thomasdelaet/curvecp.git",
@@ -18,7 +18,7 @@
     "debug": "^2.2.0",
     "extend.js": "0.0.2",
     "inherits": "^2.0.1",
-    "int64-buffer": "^0.1.4",
+    "int64-buffer": "^0.1.7",
     "is-buffer": "^1.1.0",
     "lodash": "^3.10.1",
     "nanotimer": "^0.3.13",

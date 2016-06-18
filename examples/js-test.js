@@ -152,13 +152,13 @@ server.on('listening', function () {
       console.log('BUFFERS DO NOT MATCH ON CLIENT')
     }
   })
-  messageStream.connect({
-    boxId: nacl.util.encodeBase64(serverKeyPair.publicKey),
-    udp: {
-      addresses: ['127.0.0.1'],
-      port: server.address().port
-    }
-  })
+  messageStream.connect(
+    nacl.util.encodeBase64(serverKeyPair.publicKey), {
+      udp: {
+        addresses: ['127.0.0.1'],
+        port: server.address().port
+      }
+    })
   setTimeout(function () {
     console.log(client.remotePort)
   }, 500)
