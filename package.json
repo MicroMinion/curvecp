@@ -7,7 +7,9 @@
   "directories": {
     "example": "examples"
   },
-  "scripts": {},
+  "scripts": {
+    "test": "node ./examples/js-test.js"
+  },
   "keywords": [
     "curvecp"
   ],
