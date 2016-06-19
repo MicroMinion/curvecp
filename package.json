@@ -1,6 +1,6 @@
 {
   "name": "curvecp",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Pure javascript CurveCP library",
   "main": "src/index.js",
   "repository": "git://github.com/thomasdelaet/curvecp.git",
@@ -8,7 +8,8 @@
     "example": "examples"
   },
   "scripts": {
-    "test": "node ./examples/js-test.js"
+    "test": "node ./examples/js-test.js",
+    "2npm": "publish"
   },
   "keywords": [
     "curvecp"
@@ -29,6 +30,7 @@
     "tweetnacl-util": "^0.13.3"
   },
   "devDependencies": {
-    "net-udp": "0.0.3"
+    "net-udp": "0.0.3",
+    "publish": "^0.6.0"
   }
 }
