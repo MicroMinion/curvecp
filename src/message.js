@@ -28,24 +28,30 @@ var Message = function () {
 }
 
 Message.prototype.fromBuffer = function (buf) {
-  this.id = buf.readUInt32BE()
-  this.acknowledging_id = buf.readUInt32BE(4)
-  this.acknowledging_range_1_size = Number(new Uint64BE(buf, 8))
+  this.id = buf.readUInt32LE()
+  this.acknowledging_id = buf.readUInt32LE(4)
+  this.acknowledging_range_1_size = new Buffer(8)
+  buf.copy(this.acknowledging_range_1_size, 0, 8)
+  this.acknowledging_range_1_size.reverse()
+  this.acknowledging_range_1_size = Number(new Uint64BE(this.acknowledging_range_1_size))
   if (this.acknowledging_range_1_size > Number.MAX_SAFE_INTEGER) {
     throw new Error('Acknowledging range exceeds maximum safe integer')
   }
-  this.acknowledging_range_12_gap = buf.readUInt32BE(16)
-  this.acknowledging_range_2_size = buf.readUInt16BE(20)
-  this.acknowledging_range_23_gap = buf.readUInt16BE(22)
-  this.acknowledging_range_3_size = buf.readUInt16BE(24)
-  this.acknowledging_range_34_gap = buf.readUInt16BE(26)
-  this.acknowledging_range_4_size = buf.readUInt16BE(28)
-  this.acknowledging_range_45_gap = buf.readUInt16BE(30)
-  this.acknowledging_range_5_size = buf.readUInt16BE(32)
-  this.acknowledging_range_56_gap = buf.readUInt16BE(34)
-  this.acknowledging_range_6_size = buf.readUInt16BE(36)
-  this.flags = buf.readUInt16BE(38)
-  this.offset = Number(new Uint64BE(buf, 40))
+  this.acknowledging_range_12_gap = buf.readUInt32LE(16)
+  this.acknowledging_range_2_size = buf.readUInt16LE(20)
+  this.acknowledging_range_23_gap = buf.readUInt16LE(22)
+  this.acknowledging_range_3_size = buf.readUInt16LE(24)
+  this.acknowledging_range_34_gap = buf.readUInt16LE(26)
+  this.acknowledging_range_4_size = buf.readUInt16LE(28)
+  this.acknowledging_range_45_gap = buf.readUInt16LE(30)
+  this.acknowledging_range_5_size = buf.readUInt16LE(32)
+  this.acknowledging_range_56_gap = buf.readUInt16LE(34)
+  this.acknowledging_range_6_size = buf.readUInt16LE(36)
+  this.flags = buf.readUInt16LE(38)
+  this.offset = new Buffer(8)
+  buf.copy(this.offset, 0, 40)
+  this.offset.reverse()
+  this.offset = Number(new Uint64BE(this.offset))
   if (this.offset > Number.MAX_SAFE_INTEGER) {
     throw new Error('Offset exceeds maximum safe integer')
   }
@@ -120,19 +126,19 @@ Message.prototype.toBuffer = function () {
   assert(messageSize <= MAX_MESSAGE_SIZE)
   var message = new Buffer(messageSize)
   message.fill(0)
-  message.writeUInt32BE(this.id)
-  message.writeUInt32BE(this.acknowledging_id, 4)
-  Uint64BE(message, 8, this.acknowledging_range_1_size)
-  message.writeUInt32BE(this.acknowledging_range_12_gap, 16)
-  message.writeUInt16BE(this.acknowledging_range_2_size, 20)
-  message.writeUInt16BE(this.acknowledging_range_23_gap, 22)
-  message.writeUInt16BE(this.acknowledging_range_3_size, 24)
-  message.writeUInt16BE(this.acknowledging_range_34_gap, 26)
-  message.writeUInt16BE(this.acknowledging_range_4_size, 28)
-  message.writeUInt16BE(this.acknowledging_range_45_gap, 30)
-  message.writeUInt16BE(this.acknowledging_range_5_size, 32)
-  message.writeUInt16BE(this.acknowledging_range_56_gap, 34)
-  message.writeUInt16BE(this.acknowledging_range_6_size, 36)
+  message.writeUInt32LE(this.id)
+  message.writeUInt32LE(this.acknowledging_id, 4)
+  new Uint64BE(this.acknowledging_range_1_size).toBuffer().reverse().copy(message, 8)
+  message.writeUInt32LE(this.acknowledging_range_12_gap, 16)
+  message.writeUInt16LE(this.acknowledging_range_2_size, 20)
+  message.writeUInt16LE(this.acknowledging_range_23_gap, 22)
+  message.writeUInt16LE(this.acknowledging_range_3_size, 24)
+  message.writeUInt16LE(this.acknowledging_range_34_gap, 26)
+  message.writeUInt16LE(this.acknowledging_range_4_size, 28)
+  message.writeUInt16LE(this.acknowledging_range_45_gap, 30)
+  message.writeUInt16LE(this.acknowledging_range_5_size, 32)
+  message.writeUInt16LE(this.acknowledging_range_56_gap, 34)
+  message.writeUInt16LE(this.acknowledging_range_6_size, 36)
   if (this.data !== undefined) {
     this.flags = this.data.length
   } else {
@@ -143,9 +149,10 @@ Message.prototype.toBuffer = function () {
   } else if (this.failure) {
     this.flags += STOP_FAILURE
   }
-  message.writeUInt16BE(this.flags, 38)
+  message.writeUInt16LE(this.flags, 38)
   if (this.data && this.data.length > 0) {
-    Uint64BE(message, 40, +this.offset)
+    var offset = new Uint64BE(this.offset).toBuffer().reverse()
+    offset.copy(message, 40, 0)
     this.data.copy(message, messageSize - this.data.length)
   }
   return message
