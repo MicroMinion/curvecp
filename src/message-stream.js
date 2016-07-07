@@ -30,6 +30,7 @@ var MessageStream = function (options) {
     _.forEach(self._writeRequests, function (request) {
       this.callback(new Error('Underlying stream closed'))
     }, self)
+    self._stream.removeAllListeners()
     self.emit('close')
   })
   this._stream.on('end', function () {
@@ -107,6 +108,11 @@ MessageStream.prototype._read = function (size) {}
 
 MessageStream.prototype._process = function () {
   debug('_process')
+  if (_.some(this._outgoing, function (block) {
+      return block.transmisions > constants.MAX_RETRANSMISSIONS
+    })) {
+    this.emit('error', new Error('Maximum retransmissions reached - remote host down'))
+  }
   if (this.canResend()) {
     this.resendBlock()
   } else if (this.canSend()) {
@@ -122,7 +128,6 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
   assert(isBuffer(chunk))
   if (this._sendBytes.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES) {
     done(new Error('Buffer is full'))
-    this.emit('error', new Error('Buffer is full'))
     return
   }
   this._writeRequests.push({
@@ -157,6 +162,7 @@ MessageStream.prototype.resendBlock = function () {
     }
   })
   block.transmission_time = this._chicago.get_clock()
+  block.transmissions = block.transmissions + 1
   block.id = this._nextMessageId()
   this._chicago.retransmission()
   this._sendBlock(block)

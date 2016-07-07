@@ -122,7 +122,7 @@ server.on('listening', function () {
   })
   client.on('data', function (msg) {
     console.log('message received on client')
-    console.log(msg.length)
+    console.log('length ' + msg.length)
   })
   messageStream.on('drain', function () {
     console.log('drain event')
@@ -142,8 +142,8 @@ server.on('listening', function () {
   })
   messageStream.on('end', function () {
     console.log('END RECEIVED ON CLIENT')
-    console.log(sourceServer.length)
-    console.log(destinationClient.length)
+    console.log('sourceServer length' + sourceServer.length)
+    console.log('destinationClient length' + destinationClient.length)
     // console.log(nacl.util.encodeBase64(sourceServer))
     // console.log(nacl.util.encodeBase64(destinationClient))
     if (!Buffer.compare(sourceServer, destinationClient)) {
@@ -160,7 +160,7 @@ server.on('listening', function () {
       }
     })
   setTimeout(function () {
-    console.log(client.remotePort)
+    console.log('remotePort ' + client.remotePort)
   }, 500)
 })
 

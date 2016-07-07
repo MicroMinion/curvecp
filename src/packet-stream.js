@@ -29,6 +29,7 @@ var PacketStream = function (opts) {
   opts.allowHalfOpen = false
   this.__ourNonceCounter = 0
   this.__remoteNonceCounter = 0
+  this.__state = null
   Duplex.call(this, opts)
   extend(this, {
     __canSend: false,
@@ -102,7 +103,11 @@ PacketStream.prototype._connectStream = function (stream) {
       curveStream.emit('lookup', err, address, family)
     },
     timeout: function () {
-      curveStream.emit('timeout')
+      if (curveStream.isConnected()) {
+        curveStream.emit('timeout')
+      } else {
+        // TODO: Trigger resend of hello or initiate packet
+      }
     }
   }
   stream.on('data', functions.data)
@@ -139,8 +144,13 @@ PacketStream.prototype._onMessageClient = function (message) {
   var messageType = message.subarray(0, 8)
   if (this._isEqual(messageType, COOKIE_MSG)) {
     this._onCookie(message)
-  } else if (this._isEqual(messageType, SERVER_MSG)) {
+    this.__state = COOKIE_MSG
+  } else if (this._isEqual(messageType, SERVER_MSG) &&
+    (this.__state === COOKIE_MSG || this.__state === SERVER_MSG)) {
     this._onServerMessage(message)
+    this.__state = SERVER_MSG
+  } else {
+    debug('invalid packet received')
   }
 }
 
@@ -161,10 +171,16 @@ PacketStream.prototype._onMessageServer = function (message) {
   debug(messageType.toString())
   if (this._isEqual(messageType, HELLO_MSG)) {
     this._onHello(message)
-  } else if (this._isEqual(messageType, INITIATE_MSG)) {
+    this.__state = HELLO_MSG
+  } else if (this._isEqual(messageType, INITIATE_MSG) && this.__state === HELLO_MSG) {
     this._onInitiate(message)
-  } else if (this._isEqual(messageType, CLIENT_MSG)) {
+    this.__state = INITIATE_MSG
+  } else if (this._isEqual(messageType, CLIENT_MSG) &&
+    (this.__state === INITIATE_MSG || this.__state === CLIENT_MSG)) {
     this._onClientMessage(message)
+    this.__state = CLIENT_MSG
+  } else {
+    debug('invalid packet received')
   }
 }
 
@@ -251,7 +267,7 @@ PacketStream.prototype._decrypt = function (source, prefix, from, to) {
     nonce.set(short_nonce, prefix.length)
     var result = nacl.box.open(source.subarray(nonce_length), nonce, from, to)
   } catch (err) {
-    this.emit('error', new Error('Decrypt failed with error ' + err))
+    debug('Decrypt failed with error ' + err)
   }
   return result
 }
