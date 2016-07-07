@@ -1,6 +1,6 @@
 {
   "name": "curvecp",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Pure javascript CurveCP library",
   "main": "src/index.js",
   "repository": "git://github.com/thomasdelaet/curvecp.git",
