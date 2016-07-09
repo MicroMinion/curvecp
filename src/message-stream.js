@@ -27,9 +27,7 @@ var MessageStream = function (options) {
   })
   this._stream.on('close', function () {
     self.push(null)
-    _.forEach(self._writeRequests, function (request) {
-      this.callback(new Error('Underlying stream closed'))
-    }, self)
+    self._cleanup()
     self._stream.removeAllListeners()
     self.emit('close')
   })
@@ -71,6 +69,15 @@ var MessageStream = function (options) {
 
 inherits(MessageStream, Duplex)
 
+MessageStream.prototype._cleanup = function () {
+  this._sendBytes = new Buffer(0)
+  _.forEach(this._writeRequests, function (request) {
+    request.callback(new Error('Underlying stream does not respond anymore'))
+  }, this)
+  this._writeRequests = []
+  this._outgoing = []
+}
+
 MessageStream.prototype._nextMessageId = function () {
   var result = this.__nextMessageId
   this.__nextMessageId += 1
@@ -108,9 +115,12 @@ MessageStream.prototype._read = function (size) {}
 
 MessageStream.prototype._process = function () {
   debug('_process')
-  if (_.some(this._outgoing, function (block) {
-      return block.transmisions > constants.MAX_RETRANSMISSIONS
-    })) {
+  var maxReached = _.some(this._outgoing, function (block) {
+    return block.transmissions > constants.MAX_RETRANSMISSIONS
+  })
+  if (maxReached) {
+    debug('maximum retransmissions reached')
+    this._cleanup()
     this.emit('error', new Error('Maximum retransmissions reached - remote host down'))
   }
   if (this.canResend()) {
@@ -127,6 +137,7 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
   debug('_write')
   assert(isBuffer(chunk))
   if (this._sendBytes.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES) {
+    debug('Buffer is full')
     done(new Error('Buffer is full'))
     return
   }
@@ -162,6 +173,7 @@ MessageStream.prototype.resendBlock = function () {
     }
   })
   block.transmission_time = this._chicago.get_clock()
+  debug(block.transmissions)
   block.transmissions = block.transmissions + 1
   block.id = this._nextMessageId()
   this._chicago.retransmission()
@@ -282,6 +294,8 @@ MessageStream.prototype._writeToStream = function (message) {
 MessageStream.prototype._processReady = function (err) {
   if (!err) {
     this.__streamReady = true
+  } else {
+    debug('error while sending CurveCP message')
   }
 }
 
