@@ -6,6 +6,7 @@ var debug = require('debug')('curvecp:PacketStream')
 var Uint64BE = require('int64-buffer').Uint64BE
 var nacl = require('tweetnacl')
 var crypto = require('crypto')
+var _ = require('lodash')
 nacl.util = require('tweetnacl-util')
 
 var HELLO_MSG = nacl.util.decodeUTF8('QvnQ5XlH')
@@ -87,6 +88,9 @@ PacketStream.prototype._connectStream = function (stream) {
       curveStream._onMessage(new Uint8Array(data))
     },
     error: function (err) {
+      if (!_.isError(err)) {
+        err = new Error(err)
+      }
       curveStream.emit('error', err)
     },
     close: function () {
