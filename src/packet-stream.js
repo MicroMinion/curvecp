@@ -63,6 +63,24 @@ var PacketStream = function (opts) {
 
 inherits(PacketStream, Duplex)
 
+PacketStream.prototype.toMetadata = function () {
+  return {
+    isServer: this.isServer,
+    serverPublicKey: this._encode(this.serverPublicKey),
+    clientPublicKey: this._encode(this.clientPublicKey),
+    serverConnectionPublicKey: this._encode(this.serverConnectionPublicKey),
+    clientConnectionPublicKey: this._encode(this.clientConnectionPublicKey)
+  }
+}
+
+PacketStream.prototype._encode = function (array) {
+  if (array !== undefined && array !== null) {
+    return nacl.util.encodeBase64(array)
+  } else {
+    return
+  }
+}
+
 PacketStream.prototype._canSend = function () {
   return this.__canSend
 }
