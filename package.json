@@ -30,7 +30,7 @@
     "tweetnacl-util": "^0.13.3"
   },
   "devDependencies": {
-    "net-udp": "0.0.3",
+    "net-udp": "0.0.4",
     "publish": "^0.6.0"
   }
 }
