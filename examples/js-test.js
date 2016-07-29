@@ -154,11 +154,10 @@ server.on('listening', function () {
   })
   messageStream.connect(
     nacl.util.encodeBase64(serverKeyPair.publicKey), {
-      udp: {
-        addresses: ['127.0.0.1'],
-        port: server.address().port
-      }
-    })
+      addresses: ['127.0.0.1'],
+      port: server.address().port
+    }
+  )
   setTimeout(function () {
     console.log('remotePort ' + client.remotePort)
   }, 500)
