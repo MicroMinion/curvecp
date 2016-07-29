@@ -63,11 +63,11 @@ Message.prototype.fromBuffer = function (buf) {
 
 Message.prototype.isAcknowledged = function (start_byte, length) {
   return this._inRange1(start_byte, length) ||
-  this._inRange2(start_byte, length) ||
-  this._inRange3(start_byte, length) ||
-  this._inRange4(start_byte, length) ||
-  this._inRange5(start_byte, length) ||
-  this._inRange6(start_byte, length)
+    this._inRange2(start_byte, length) ||
+    this._inRange3(start_byte, length) ||
+    this._inRange4(start_byte, length) ||
+    this._inRange5(start_byte, length) ||
+    this._inRange6(start_byte, length)
 }
 
 Message.prototype._inRange1 = function (start_byte, length) {
