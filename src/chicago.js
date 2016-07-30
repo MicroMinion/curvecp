@@ -1,25 +1,9 @@
 var hrtime = require('browser-process-hrtime')
-var nacl = require('tweetnacl')
 var debug = require('debug')('curvecp:chicago')
 var NanoTimer = require('nanotimer')
 var Clock = require('./clock.js')
 var constants = require('./constants.js')
-
-var _safe_integer_addition = function (original, addition) {
-  if (Number.MAX_SAFE_INTEGER - addition < original) {
-    return Number.MAX_SAFE_INTEGER
-  } else {
-    return original + addition
-  }
-}
-
-var _safe_integer_multiplication = function (original, multiplier) {
-  if (Number.MAX_SAFE_INTEGER / 4 < original) {
-    return Number.MAX_SAFE_INTEGER
-  } else {
-    return original * multiplier
-  }
-}
+var utils = require('./utils.js')
 
 var Chicago = function () {
   /* Clock instance */
@@ -129,7 +113,7 @@ Chicago.prototype.retransmission = function () {
 }
 
 Chicago.prototype._halve_transmission_rate = function () {
-  this.nsecperblock = _safe_integer_multiplication(this.nsecperblock, 2)
+  this.nsecperblock = utils.safe_integer_multiplication(this.nsecperblock, 2)
   this.lastpanic = this.clock.clone()
   this.lastedge = this.clock.clone()
 }
@@ -168,35 +152,35 @@ Chicago.prototype._initialize_rtt = function (original_blocktime) {
 Chicago.prototype._jacobson_retransmission_timeout = function (rtt) {
   /* Jacobon's retransmission timeout calculation */
   var rtt_delta = rtt - this.rtt_average
-  this.rtt_average = _safe_integer_addition(this.rtt_average, rtt_delta / 8)
+  this.rtt_average = utils.safe_integer_addition(this.rtt_average, rtt_delta / 8)
   if (rtt_delta < 0) {
     rtt_delta = -rtt_delta
   }
   rtt_delta -= this.rtt_deviation
-  this.rtt_deviation = _safe_integer_addition(this.rtt_deviation, rtt_delta / 4)
-  this.rtt_timeout = _safe_integer_addition(this.rtt_average, _safe_integer_multiplication(this.rtt_deviation, 4))
+  this.rtt_deviation = utils.safe_integer_addition(this.rtt_deviation, rtt_delta / 4)
+  this.rtt_timeout = utils.safe_integer_addition(this.rtt_average, utils.safe_integer_multiplication(this.rtt_deviation, 4))
 }
 
 Chicago.prototype._compensate_delayed_acks = function () {
   /* adjust for delayed acks with anti-spiking */
-  this.rtt_timeout = _safe_integer_addition(this.rtt_timeout, 8 * this.nsecperblock)
+  this.rtt_timeout = utils.safe_integer_addition(this.rtt_timeout, 8 * this.nsecperblock)
 }
 
 Chicago.prototype._track_watermarks = function (rtt) {
   /* Adjust high watermark of congestion cycle */
   var rtt_delta = rtt - this.rtt_highwater
-  this.rtt_highwater = _safe_integer_addition(this.rtt_highwater, rtt_delta / 1024)
+  this.rtt_highwater = utils.safe_integer_addition(this.rtt_highwater, rtt_delta / 1024)
   /* Adjust low watermark of congestion cycle */
   rtt_delta = rtt - this.rtt_lowwater
   if (rtt_delta > 0) {
-    this.rtt_lowwater = _safe_integer_addition(this.rtt_lowwater, rtt_delta / 8192)
+    this.rtt_lowwater = utils.safe_integer_addition(this.rtt_lowwater, rtt_delta / 8192)
   } else {
-    this.rtt_lowwater = _safe_integer_addition(this.rtt_lowwater, rtt_delta / 256)
+    this.rtt_lowwater = utils.safe_integer_addition(this.rtt_lowwater, rtt_delta / 256)
   }
 }
 
 Chicago.prototype._check_for_watermarks = function () {
-  if (this.rtt_average > _safe_integer_addition(this.rtt_highwater, 5 * constants.MILLISECOND)) {
+  if (this.rtt_average > utils.safe_integer_addition(this.rtt_highwater, 5 * constants.MILLISECOND)) {
     this.rtt_seenrecenthigh = true
   } else if (this.rtt_average < this.rtt_lowwater) {
     this.rtt_seenrecentlow = true
@@ -205,7 +189,7 @@ Chicago.prototype._check_for_watermarks = function () {
 
 // Start new adjustment cycle (at least 16 tranmsission periods have elapsed)
 Chicago.prototype._adjustment_cycle_has_completed = function () {
-  var cycle = _safe_integer_multiplication(this.nsecperblock, 16)
+  var cycle = utils.safe_integer_multiplication(this.nsecperblock, 16)
   var endOfCycle = new Clock([this.lastspeedadjustment.seconds, this.lastspeedadjustment.nanoseconds])
   endOfCycle.add(cycle)
   var result = this.clock.compare(endOfCycle)
@@ -216,7 +200,7 @@ Chicago.prototype._reinitialize_lastspeedadjustment = function () {
   debug('_reinitialize_lastspeedadjustment ' + this.nsecperblock)
   if (this.clock.subtract(this.lastspeedadjustment) > 10 * constants.SECOND) {
     this.nsecperblock = constants.SECOND /* slow restart */
-    this.nsecperblock = _safe_integer_addition(this.nsecperblock, this._randommod(this.nsecperblock / 8))
+    this.nsecperblock = utils.safe_integer_addition(this.nsecperblock, utils.randommod(this.nsecperblock / 8))
   }
   this.lastspeedadjustment = this.clock.clone()
 }
@@ -231,7 +215,7 @@ Chicago.prototype._apply_additive_increase = function () {
     if (this.nsecperblock < 16777216) {
       /* N/(1+cN^2) approx N - cN^3 */
       var u = this.nsecperblock / 131072
-      var u_3 = _safe_integer_multiplication(_safe_integer_multiplication(u, u), u)
+      var u_3 = utils.safe_integer_multiplication(utils.safe_integer_multiplication(u, u), u)
       this.nsecperblock = this.nsecperblock - u_3
     } else {
       var d = this.nsecperblock
@@ -246,7 +230,7 @@ Chicago.prototype._phase_events = function () {
     if (this.rtt_seenolderhigh) {
       this.rtt_phase = 1
       this.lastedge = this.clock
-      this.nsecperblock = _safe_integer_addition(this.nsecperblock, this._randommod(this.nsecperblock / 4))
+      this.nsecperblock = utils.safe_integer_addition(this.nsecperblock, utils.randommod(this.nsecperblock / 4))
     }
   } else {
     if (this.rtt_seenolderlow) {
@@ -267,9 +251,9 @@ Chicago.prototype._apply_rate_doubling = function () {
   var compareClock
   var result
   while (true) {
-    var n_4 = _safe_integer_multiplication(this.nsecperblock, 4)
+    var n_4 = utils.safe_integer_multiplication(this.nsecperblock, 4)
     if (this.clock.subtract(this.lastedge) < 60 * constants.SECOND) {
-      var rto_64 = _safe_integer_multiplication(this.rtt_timeout, 64)
+      var rto_64 = utils.safe_integer_multiplication(this.rtt_timeout, 64)
       compareClock = this.lastdoubling.clone()
       compareClock.add(n_4)
       compareClock.add(rto_64)
@@ -279,7 +263,7 @@ Chicago.prototype._apply_rate_doubling = function () {
         break
       }
     } else {
-      var rto_2 = _safe_integer_multiplication(this.rtt_timeout, 2)
+      var rto_2 = utils.safe_integer_multiplication(this.rtt_timeout, 2)
       compareClock = this.lastdoubling.clone()
       compareClock.add(n_4)
       compareClock.add(rto_2)
@@ -297,19 +281,6 @@ Chicago.prototype._apply_rate_doubling = function () {
       this.lastedge = this.clock.clone()
     }
   }
-}
-
-Chicago.prototype._randommod = function (n) {
-  var result = 0
-  if (n <= 1) {
-    return 0
-  }
-  var randomBytes = nacl.randomBytes(32)
-  for (var j = 0; j < 32; ++j) {
-    result = _safe_integer_addition(_safe_integer_multiplication(result, 256), Number(randomBytes[j]))
-    result = result % n
-  }
-  return result
 }
 
 module.exports = Chicago
