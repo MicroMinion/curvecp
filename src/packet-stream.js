@@ -226,6 +226,10 @@ PacketStream.prototype.connect = function (boxId, connectionInfo) {
   }
 }
 
+PacketStream.prototype.setDestination = function (destination) {
+  this.serverPublicKey = nacl.util.decodeBase64(destination)
+}
+
 PacketStream.prototype.isConnected = function () {
   return this.__canSend
 }
