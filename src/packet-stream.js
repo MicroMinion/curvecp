@@ -8,12 +8,15 @@ var nacl = require('tweetnacl')
 var crypto = require('crypto')
 var _ = require('lodash')
 nacl.util = require('tweetnacl-util')
+var utils = require('./utils.js')
 
 var HELLO_MSG = nacl.util.decodeUTF8('QvnQ5XlH')
 var COOKIE_MSG = nacl.util.decodeUTF8('RL3aNMXK')
 var INITIATE_MSG = nacl.util.decodeUTF8('QvnQ5XlI')
 var SERVER_MSG = nacl.util.decodeUTF8('RL3aNMXM')
 var CLIENT_MSG = nacl.util.decodeUTF8('QvnQ5XlM')
+
+var HELLO_WAIT = [1000000000, 1500000000, 2250000000, 3375000000, 5062500000, 7593750000, 11390625000, 17085937500]
 
 nacl.setPRNG(function (x, n) {
   var i
@@ -30,6 +33,7 @@ var PacketStream = function (opts) {
   opts.allowHalfOpen = false
   this.__ourNonceCounter = 0
   this.__remoteNonceCounter = 0
+  this.__helloCounter = 0
   this.__state = null
   Duplex.call(this, opts)
   extend(this, {
@@ -368,6 +372,7 @@ PacketStream.prototype.__validNonce = function (message, offset) {
 
 PacketStream.prototype._sendHello = function () {
   debug('sendHello')
+  var self = this
   this._setCanSend(false)
   this.__initiateSend = false
   var keyPair = nacl.box.keyPair()
@@ -381,6 +386,15 @@ PacketStream.prototype._sendHello = function () {
   result.set(box, 136)
   result = this._setExtensions(result)
   this.stream.write(new Buffer(result))
+  var wait = HELLO_WAIT[this.__helloCounter]
+  setTimeout(function () {
+    if (self.__state === COOKIE_MSG || self.__state === SERVER_MSG) {} else if (self.__helloCounter < HELLO_WAIT.length + 1) {
+      self.__helloCounter += 1
+      self._sendHello()
+    } else {
+      self.emit('error', new Error('Maximum resends of HELLO packet reached, aborting'))
+    }
+  }, (wait + utils.randommod(wait)) / 1000000)
 }
 
 PacketStream.prototype._onHello = function (helloMessage) {
