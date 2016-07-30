@@ -602,7 +602,11 @@ PacketStream.prototype._onClientMessage = function (message) {
 Object.defineProperty(PacketStream.prototype, 'remoteAddress', {
   get: function () {
     if (this.isServer) {
-      return nacl.util.encodeBase64(this.clientPublicKey)
+      if (!this.clientPublicKey) {
+        return
+      } else {
+        return nacl.util.encodeBase64(this.clientPublicKey)
+      }
     } else {
       return nacl.util.encodeBase64(this.serverPublicKey)
     }
