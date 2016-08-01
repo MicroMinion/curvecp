@@ -1,11 +1,22 @@
 var hrtime = require('browser-process-hrtime')
-var debug = require('debug')('curvecp:chicago')
+var winston = require('winston')
+var winstonWrapper = require('winston-meta-wrapper')
 var NanoTimer = require('nanotimer')
 var Clock = require('./clock.js')
 var constants = require('./constants.js')
 var utils = require('./utils.js')
 
-var Chicago = function () {
+var Chicago = function (options) {
+  if (!options) {
+    options = {}
+  }
+  if (!options.logger) {
+    options.logger = winston
+  }
+  this._log = winstonWrapper(options.logger)
+  this._log.addMeta({
+    module: 'curvecp-chicago'
+  })
   /* Clock instance */
   this.clock = new Clock([0, 0])
   this._refresh_clock()
@@ -66,7 +77,7 @@ Chicago.prototype._timeout_callback = function () {
 }
 
 Chicago.prototype._set_timeout = function () {
-  debug('_set_timeout ' + this.nsecperblock)
+  this._log.debug('_set_timeout ' + this.nsecperblock)
   this.timer.setTimeout(this._timeout_callback.bind(this), [], this.nsecperblock.toString() + 'n')
 }
 
@@ -121,7 +132,6 @@ Chicago.prototype._halve_transmission_rate = function () {
 /* MESSAGE ACKNOWLEDGEMENT */
 
 Chicago.prototype.acknowledgement = function (original_blocktime) {
-  debug('acknowledgement')
   this._refresh_clock()
   var rtt = this._initialize_rtt(original_blocktime)
   this._jacobson_retransmission_timeout(rtt)
@@ -197,7 +207,7 @@ Chicago.prototype._adjustment_cycle_has_completed = function () {
 }
 
 Chicago.prototype._reinitialize_lastspeedadjustment = function () {
-  debug('_reinitialize_lastspeedadjustment ' + this.nsecperblock)
+  this._log.debug('_reinitialize_lastspeedadjustment ' + this.nsecperblock)
   if (this.clock.subtract(this.lastspeedadjustment) > 10 * constants.SECOND) {
     this.nsecperblock = constants.SECOND /* slow restart */
     this.nsecperblock = utils.safe_integer_addition(this.nsecperblock, utils.randommod(this.nsecperblock / 8))
@@ -206,7 +216,7 @@ Chicago.prototype._reinitialize_lastspeedadjustment = function () {
 }
 
 Chicago.prototype._apply_additive_increase = function () {
-  debug('_apply_additive_increase ' + this.nsecperblock)
+  this._log.debug('_apply_additive_increase ' + this.nsecperblock)
   if (this.nsecperblock >= 131072) {
     /* additive increase: adjust 1/N by a constant c */
     /* rtt-fair additive increase: adjust 1/N by a constant c every nanosecond */
@@ -225,7 +235,7 @@ Chicago.prototype._apply_additive_increase = function () {
 }
 
 Chicago.prototype._phase_events = function () {
-  debug('_phase_events ' + this.nsecperblock)
+  this._log.debug('_phase_events ' + this.nsecperblock)
   if (this.rtt_phase === 0) {
     if (this.rtt_seenolderhigh) {
       this.rtt_phase = 1
@@ -247,7 +257,7 @@ Chicago.prototype._update_seen_watermarks = function () {
 }
 
 Chicago.prototype._apply_rate_doubling = function () {
-  debug('_apply_rate_doubling ' + this.nsecperblock)
+  this._log.debug('_apply_rate_doubling ' + this.nsecperblock)
   var compareClock
   var result
   while (true) {

@@ -5,12 +5,22 @@ var Duplex = require('readable-stream-no-buffering').Duplex
 var inherits = require('inherits')
 var Block = require('./message-block.js')
 var _ = require('lodash')
-var debug = require('debug')('curvecp:MessageStream')
 var constants = require('./constants.js')
 var isBuffer = require('is-buffer')
+var winston = require('winston')
+var winstonWrapper = require('winston-meta-wrapper')
 
 var MessageStream = function (options) {
-  debug('initialize')
+  if (!options) {
+    options = {}
+  }
+  if (!options.logger) {
+    options.logger = winston
+  }
+  this._log = winstonWrapper(options.logger)
+  this._log.addMeta({
+    module: 'curvecp-messagestream'
+  })
   var opts = {}
   opts.objectMode = false
   opts.decodeStrings = true
@@ -85,7 +95,7 @@ MessageStream.prototype._nextMessageId = function () {
 }
 
 MessageStream.prototype._receiveData = function (data) {
-  debug('_receiveData')
+  this._log.debug('_receiveData')
   if (_.size(this._incoming) < constants.MAX_INCOMING) {
     var message = new Message()
     message.fromBuffer(data)
@@ -114,12 +124,12 @@ MessageStream.prototype.destroy = function () {
 MessageStream.prototype._read = function (size) {}
 
 MessageStream.prototype._process = function () {
-  debug('_process')
+  this._log.debug('_process')
   var maxReached = _.some(this._outgoing, function (block) {
     return block.transmissions > constants.MAX_RETRANSMISSIONS
   })
   if (maxReached) {
-    debug('maximum retransmissions reached')
+    this._log.warn('maximum retransmissions reached')
     this._cleanup()
     this.emit('error', new Error('Maximum retransmissions reached - remote host down'))
   }
@@ -134,10 +144,10 @@ MessageStream.prototype._process = function () {
 }
 
 MessageStream.prototype._write = function (chunk, encoding, done) {
-  debug('_write')
+  this._log.debug('_write')
   assert(isBuffer(chunk))
   if (this._sendBytes.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES) {
-    debug('Buffer is full')
+    this._log.warn('Buffer is full')
     done(new Error('Buffer is full'))
     return
   }
@@ -147,8 +157,8 @@ MessageStream.prototype._write = function (chunk, encoding, done) {
     callback: done
   })
   this._sendBytes = Buffer.concat([this._sendBytes, chunk])
-  debug('_sendBytes length: ' + this._sendBytes.length)
-  debug('_sendProcessed length: ' + this._sendProcessed)
+  this._log.debug('_sendBytes length: ' + this._sendBytes.length)
+  this._log.debug('_sendProcessed length: ' + this._sendProcessed)
   this._chicago.enable_timer()
   return this._sendBytes.length < constants.MAXIMUM_UNPROCESSED_SEND_BYTES
 }
@@ -159,13 +169,18 @@ MessageStream.prototype._end = function () {
 }
 
 MessageStream.prototype.canResend = function () {
-  return this.__streamReady && !_.isEmpty(this._outgoing) && _.some(this._outgoing, function (block) {
-    return this._chicago.block_is_timed_out(block.transmission_time)
-  }, this)
+  var self = this
+  if (this.__streamReady && !_.isEmpty(this._outgoing)) {
+    var some = _.some(this._outgoing, function (block) {
+      return self._chicago.block_is_timed_out(block.transmission_time)
+    })
+    return some
+  }
+  return false
 }
 
 MessageStream.prototype.resendBlock = function () {
-  debug('resendBlock')
+  this._log.debug('resendBlock')
   var block = this._outgoing[0]
   _.forEach(this._outgoing, function (compareBlock) {
     if (block.transmission_time.compare(compareBlock) > 0) {
@@ -173,7 +188,6 @@ MessageStream.prototype.resendBlock = function () {
     }
   })
   block.transmission_time = this._chicago.get_clock()
-  debug(block.transmissions)
   block.transmissions = block.transmissions + 1
   block.id = this._nextMessageId()
   this._chicago.retransmission()
@@ -185,9 +199,9 @@ MessageStream.prototype.canSend = function () {
 }
 
 MessageStream.prototype.sendBlock = function () {
-  debug('sendBlock')
-  debug('sendBytes start: ' + this._sendBytes.length)
-  debug('sendProcessed start: ' + this._sendProcessed)
+  this._log.debug('sendBlock')
+  this._log.debug('sendBytes start: ' + this._sendBytes.length)
+  this._log.debug('sendProcessed start: ' + this._sendProcessed)
   var blockSize = this._sendBytes.length
   if (blockSize > this._maxBlockLength) {
     blockSize = this._maxBlockLength
@@ -203,8 +217,8 @@ MessageStream.prototype.sendBlock = function () {
   }
   this._sendBytes = this._sendBytes.slice(blockSize)
   this._sendProcessed = this._sendProcessed + block.data.length
-  debug('sendBytes stop: ' + this._sendBytes.length)
-  debug('sendProcessed stop: ' + this._sendProcessed)
+  this._log.debug('sendBytes stop: ' + this._sendBytes.length)
+  this._log.debug('sendProcessed stop: ' + this._sendProcessed)
   this._outgoing.push(block)
   this._sendBlock(block)
   if (this._sendBytes.length + block.data.length > constants.MAXIMUM_UNPROCESSED_SEND_BYTES * 0.5 &&
@@ -214,7 +228,7 @@ MessageStream.prototype.sendBlock = function () {
 }
 
 MessageStream.prototype._sendBlock = function (block) {
-  debug('_sendBlock ' + block.start_byte + ' - ' + block.data.length)
+  this._log.debug('_sendBlock ' + block.start_byte + ' - ' + block.data.length)
   var message = new Message()
   message.id = block.id
   message.acknowledging_range_1_size = this._receivedBytes
@@ -232,27 +246,28 @@ MessageStream.prototype.canProcessMessage = function () {
 }
 
 MessageStream.prototype.processMessage = function () {
-  debug('processMessage')
+  this._log.debug('processMessage')
   var message = this._incoming.shift()
   this.processAcknowledgments(message)
   this._processMessage(message)
 }
 
 MessageStream.prototype.processAcknowledgments = function (message) {
-  debug('processAcknowledgements')
+  var self = this
+  this._log.debug('processAcknowledgements')
   var removedList
   removedList = _.remove(this._outgoing, function (block) {
     return message.isAcknowledged(block.start_byte, block.data.length)
   }, this)
   _.forEach(removedList, function (block) {
-    debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
+    this._log.debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
     this._chicago.acknowledgement(block.transmission_time)
   }, this)
   removedList = _.remove(this._writeRequests, function (writeRequest) {
     return message.isAcknowledged(writeRequest.startByte, writeRequest.length)
   }, this)
   _.forEach(removedList, function (writeRequest) {
-    debug('write request acknowledged: ' + writeRequest.startByte + ' - ' + writeRequest.length)
+    self._log.debug('write request acknowledged: ' + writeRequest.startByte + ' - ' + writeRequest.length)
     writeRequest.callback()
   })
   if ((this._stopSuccess || this._stopFailure) && this._sendBytes.length === 0 && this._outgoing.length === 0) {
@@ -261,7 +276,7 @@ MessageStream.prototype.processAcknowledgments = function (message) {
 }
 
 MessageStream.prototype.sendAcknowledgment = function (message) {
-  debug('sendAcknowledgment ' + this._receivedBytes)
+  this._log.debug('sendAcknowledgment ' + this._receivedBytes)
   var reply = new Message()
   reply.id = this._nextMessageId()
   reply.acknowledging_id = message.id
@@ -270,7 +285,7 @@ MessageStream.prototype.sendAcknowledgment = function (message) {
 }
 
 MessageStream.prototype._processMessage = function (message) {
-  debug('_processMessage')
+  this._log.debug('_processMessage')
   if (message.offset <= this._receivedBytes) {
     if (message.data_length > 1) {
       var ignoreBytes = this._receivedBytes - message.offset
@@ -295,7 +310,7 @@ MessageStream.prototype._processReady = function (err) {
   if (!err) {
     this.__streamReady = true
   } else {
-    debug('error while sending CurveCP message')
+    this._log.warn('error while sending CurveCP message')
   }
 }
 

@@ -2,13 +2,14 @@
 var Duplex = require('stream').Duplex
 var inherits = require('inherits')
 var extend = require('extend.js')
-var debug = require('debug')('curvecp:PacketStream')
 var Uint64BE = require('int64-buffer').Uint64BE
 var nacl = require('tweetnacl')
 var crypto = require('crypto')
 var _ = require('lodash')
 nacl.util = require('tweetnacl-util')
 var utils = require('./utils.js')
+var winston = require('winston')
+var winstonWrapper = require('winston-meta-wrapper')
 
 var HELLO_MSG = nacl.util.decodeUTF8('QvnQ5XlH')
 var COOKIE_MSG = nacl.util.decodeUTF8('RL3aNMXK')
@@ -26,8 +27,14 @@ nacl.setPRNG(function (x, n) {
 })
 
 var PacketStream = function (opts) {
-  debug('initialize')
   if (!opts) opts = {}
+  if (!opts.logger) {
+    opts.logger = winston
+  }
+  this._log = winstonWrapper(opts.logger)
+  this._log.addMeta({
+    module: 'curvecp-packetstream'
+  })
   opts.objectMode = false
   opts.decodeStrings = true
   opts.allowHalfOpen = false
@@ -146,7 +153,7 @@ PacketStream.prototype._connectStream = function (stream) {
 }
 
 PacketStream.prototype._onMessage = function (message) {
-  debug('_onMessage')
+  this._log.debug('_onMessage')
   if (this.isServer) {
     this._onMessageServer(message)
   } else {
@@ -155,16 +162,16 @@ PacketStream.prototype._onMessage = function (message) {
 }
 
 PacketStream.prototype._onMessageClient = function (message) {
-  debug('_onMessage@Client')
+  this._log.debug('_onMessage@Client')
   if (message.length < 64 || message.length > 1152) {
     return
   }
   if (!this._isEqual(this.clientExtension, message.subarray(8, 24))) {
-    debug('invalid clientExtension')
+    this._log.warn('invalid clientExtension')
     return
   }
   if (!this._isEqual(this.serverExtension, message.subarray(24, 40))) {
-    debug('invalid serverExtension')
+    this._log.warn('invalid serverExtension')
     return
   }
   var messageType = message.subarray(0, 8)
@@ -176,25 +183,24 @@ PacketStream.prototype._onMessageClient = function (message) {
     this._onServerMessage(message)
     this.__state = SERVER_MSG
   } else {
-    debug('invalid packet received')
+    this._log.warn('invalid packet received')
   }
 }
 
 PacketStream.prototype._onMessageServer = function (message) {
-  debug('_onMessage@Server')
+  this._log.debug('_onMessage@Server')
   if (message.length < 96 || message.length > 1184) {
     return
   }
   if (!this._isEqual(this.clientExtension, message.subarray(24, 40))) {
-    debug('invalid clientExtension')
+    this._log.warn('invalid clientExtension')
     return
   }
   if (!this._isEqual(this.serverExtension, message.subarray(8, 24))) {
-    debug('invalid serverExtension')
+    this._log.warn('invalid serverExtension')
     return
   }
   var messageType = message.subarray(0, 8)
-  debug(messageType.toString())
   if (this._isEqual(messageType, HELLO_MSG)) {
     this._onHello(message)
     this.__state = HELLO_MSG
@@ -206,13 +212,15 @@ PacketStream.prototype._onMessageServer = function (message) {
     this._onClientMessage(message)
     this.__state = CLIENT_MSG
   } else {
-    debug('invalid packet received')
+    this._log.warn('invalid packet received')
   }
 }
 
 PacketStream.prototype.connect = function (boxId, connectionInfo) {
-  debug('connect')
-  debug(connectionInfo)
+  this._log.debug('connect', {
+    connectionInfo: connectionInfo,
+    boxId: boxId
+  })
   var self = this
   if (!this.isServer) {
     this.serverPublicKey = nacl.util.decodeBase64(boxId)
@@ -223,7 +231,7 @@ PacketStream.prototype.connect = function (boxId, connectionInfo) {
     }
   } else {
     this.stream.once('connect', function () {
-      debug('underlying stream connected')
+      self._log.debug('underlying stream connected')
       self.connect(boxId, connectionInfo)
     })
     this.stream.connect(connectionInfo)
@@ -243,11 +251,11 @@ PacketStream.prototype.destroy = function () {
 }
 
 PacketStream.prototype._read = function (size) {
-  debug('_read')
+  this._log.debug('_read')
 }
 
 PacketStream.prototype._write = function (chunk, encoding, done) {
-  debug('_write')
+  this._log.debug('_write')
   if (this._canSend()) {
     if (this.isServer) {
       this._sendServerMessage(chunk, done)
@@ -297,7 +305,7 @@ PacketStream.prototype._decrypt = function (source, prefix, from, to) {
     nonce.set(short_nonce, prefix.length)
     var result = nacl.box.open(source.subarray(nonce_length), nonce, from, to)
   } catch (err) {
-    debug('Decrypt failed with error ' + err)
+    this._log.warn('Decrypt failed with error ' + err)
   }
   return result
 }
@@ -371,7 +379,7 @@ PacketStream.prototype.__validNonce = function (message, offset) {
 // Hello command
 
 PacketStream.prototype._sendHello = function () {
-  debug('sendHello')
+  this._log.debug('sendHello')
   var self = this
   this._setCanSend(false)
   this.__initiateSend = false
@@ -398,24 +406,24 @@ PacketStream.prototype._sendHello = function () {
 }
 
 PacketStream.prototype._onHello = function (helloMessage) {
-  debug('onHello')
+  this._log.debug('onHello')
   this._setCanSend(false)
   if (helloMessage.length !== 224) {
-    debug('Hello message has incorrect length')
+    this._log.warn('Hello message has incorrect length')
     return
   }
   this.clientConnectionPublicKey = helloMessage.subarray(40, 40 + 32)
   if (!this.__validNonce(helloMessage, 40 + 32 + 64)) {
-    debug('Invalid nonce received')
+    this._log.warn('Invalid nonce received')
     return
   }
   var boxData = this._decrypt(helloMessage.subarray(40 + 32 + 64, 224), 'CurveCP-client-H', this.clientConnectionPublicKey, this.serverPrivateKey)
   if (boxData === undefined) {
-    debug('Hello: not able to decrypt box data')
+    this._log.warn('Hello: not able to decrypt box data')
     return
   }
   if (!this._isEqual(boxData, new Uint8Array(64))) {
-    debug('Hello: invalid data in signature box')
+    this._log.warn('Hello: invalid data in signature box')
     return
   }
   this._sendCookie()
@@ -424,7 +432,7 @@ PacketStream.prototype._onHello = function (helloMessage) {
 // Cookie command
 
 PacketStream.prototype._sendCookie = function () {
-  debug('sendCookie')
+  this._log.debug('sendCookie')
   this._setCanSend(false)
   var keyPair = nacl.box.keyPair()
   this.serverConnectionPublicKey = keyPair.publicKey
@@ -448,21 +456,21 @@ PacketStream.prototype._sendCookie = function () {
 }
 
 PacketStream.prototype._onCookie = function (cookieMessage) {
-  debug('onCookie')
+  this._log.debug('onCookie')
   this._setCanSend(false)
   if (cookieMessage.length !== 200) {
-    debug('Cookie message has incorrect length')
+    this._log.warn('Cookie message has incorrect length')
     return
   }
   var boxData = this._decrypt(cookieMessage.subarray(40, 200), 'CurveCPK', this.serverPublicKey, this.clientConnectionPrivateKey)
   if (boxData === undefined) {
-    debug('Not able to decrypt welcome box data')
+    this._log.warn('Not able to decrypt welcome box data')
     return
   }
   this.serverConnectionPublicKey = boxData.subarray(0, 32)
   this.__serverCookie = boxData.subarray(32)
   if (this.__serverCookie.length !== 96) {
-    debug('Welcome command server cookie invalid')
+    this._log.warn('Welcome command server cookie invalid')
     return
   }
   this._setCanSend(true)
@@ -472,9 +480,9 @@ PacketStream.prototype._onCookie = function (cookieMessage) {
 // Initiate command
 
 PacketStream.prototype._sendInitiate = function (message, done) {
-  debug('sendInitiate ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
+  this._log.debug('sendInitiate ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   if (message.length & 15) {
-    debug('message is of incorrect length, needs to be multiple of 16')
+    this._log.warn('message is of incorrect length, needs to be multiple of 16')
     return
   }
   var result = new Uint8Array(544 + message.length)
@@ -500,33 +508,33 @@ PacketStream.prototype._createVouch = function () {
 }
 
 PacketStream.prototype._onInitiate = function (initiateMessage) {
-  debug('onInitiate')
+  this._log.debug('onInitiate')
   this._setCanSend(false)
   if (initiateMessage.length < 544) {
-    debug('Initiate command has incorrect length')
+    this._log.warn('Initiate command has incorrect length')
     return
   }
   if (!this.__validNonce(initiateMessage, 72 + 96)) {
-    debug('Invalid nonce received')
+    this._log.warn('Invalid nonce received')
     return
   }
   if (!this._isEqual(initiateMessage.subarray(72, 72 + 96), this.__serverCookie)) {
-    debug('Initiate command server cookie not recognized')
+    this._log.warn('Initiate command server cookie not recognized')
     return
   }
   var initiateBoxData = this._decrypt(initiateMessage.subarray(72 + 96), 'CurveCP-client-I', this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
   if (initiateBoxData === undefined) {
-    debug('Not able to decrypt initiate box data')
+    this._log.warn('Not able to decrypt initiate box data')
     return
   }
   this.clientPublicKey = initiateBoxData.subarray(0, 32)
   var vouch = this._decrypt(initiateBoxData.subarray(32, 96), 'CurveCPV', this.clientPublicKey, this.serverPrivateKey)
   if (vouch === undefined) {
-    debug('not able to decrypt vouch data')
+    this._log.warn('not able to decrypt vouch data')
     return
   }
   if (!this._isEqual(vouch, this.clientConnectionPublicKey)) {
-    debug('Initiate command vouch contains different client connection public key than previously received')
+    this._log.warn('Initiate command vouch contains different client connection public key than previously received')
     return
   }
   this._setCanSend(true)
@@ -537,7 +545,7 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
 // Message command - Server
 
 PacketStream.prototype._sendServerMessage = function (message, done) {
-  debug('sendServerMessage')
+  this._log.debug('sendServerMessage')
   var result = new Uint8Array(64 + message.length)
   result.set(SERVER_MSG)
   var nonce = this._createNonceFromCounter('CurveCP-server-M')
@@ -548,18 +556,18 @@ PacketStream.prototype._sendServerMessage = function (message, done) {
 }
 
 PacketStream.prototype._onServerMessage = function (message) {
-  debug('onServerMessage@Client')
+  this._log.debug('onServerMessage@Client')
   if (message.length < 64 || message.length > 1152) {
-    debug('Message command has incorrect length')
+    this._log.warn('Message command has incorrect length')
     return
   }
   if (!this.__validNonce(message, 40)) {
-    debug('Invalid nonce received')
+    this._log.warn('Invalid nonce received')
     return
   }
   var boxData = this._decrypt(message.subarray(40), 'CurveCP-server-M', this.serverConnectionPublicKey, this.clientConnectionPrivateKey)
   if (boxData === undefined || !boxData) {
-    debug('not able to decrypt box data')
+    this._log.warn('not able to decrypt box data')
     return
   }
   this._setCanSend(true)
@@ -570,7 +578,7 @@ PacketStream.prototype._onServerMessage = function (message) {
 // Message command - Client
 
 PacketStream.prototype._sendClientMessage = function (message, done) {
-  debug('sendClientMessage ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
+  this._log.debug('sendClientMessage ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   var result = new Uint8Array(96 + message.length)
   result.set(CLIENT_MSG)
   var nonce = this._createNonceFromCounter('CurveCP-client-M')
@@ -581,18 +589,18 @@ PacketStream.prototype._sendClientMessage = function (message, done) {
 }
 
 PacketStream.prototype._onClientMessage = function (message) {
-  debug('onClientMessage@Server ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
+  this._log.debug('onClientMessage@Server ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   if (message.length < 96 || message.length > 1184) {
-    debug('Message command has incorrect length')
+    this._log.warn('Message command has incorrect length')
     return
   }
   if (!this.__validNonce(message, 40 + 32)) {
-    debug('Invalid nonce received')
+    this._log.warn('Invalid nonce received')
     return
   }
   var boxData = this._decrypt(message.subarray(40 + 32), 'CurveCP-client-M', this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
   if (boxData === undefined || !boxData) {
-    debug('not able to decrypt box data')
+    this._log.warn('not able to decrypt box data')
     return
   }
   var buffer = new Buffer(boxData)
