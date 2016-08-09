@@ -102,7 +102,7 @@ MessageStream.prototype._receiveData = function (data) {
     this._incoming.push(message)
   }
   var self = this
-  setImmediate(function () {
+  process.nextTick(function () {
     if (self.canProcessMessage()) {
       self.processMessage()
     }
