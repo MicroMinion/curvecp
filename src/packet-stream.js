@@ -463,14 +463,14 @@ PacketStream.prototype._onCookie = function (cookieMessage) {
     return
   }
   var boxData = this._decrypt(cookieMessage.subarray(40, 200), 'CurveCPK', this.serverPublicKey, this.clientConnectionPrivateKey)
-  if (boxData === undefined) {
-    this._log.warn('Not able to decrypt welcome box data')
+  if (boxData === undefined || !boxData) {
+    this._log.warn('Not able to decrypt cookie box data')
     return
   }
   this.serverConnectionPublicKey = boxData.subarray(0, 32)
   this.__serverCookie = boxData.subarray(32)
   if (this.__serverCookie.length !== 96) {
-    this._log.warn('Welcome command server cookie invalid')
+    this._log.warn('Server cookie invalid')
     return
   }
   this._setCanSend(true)
