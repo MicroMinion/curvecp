@@ -123,8 +123,8 @@ PacketStream.prototype._connectStream = function (stream) {
       curveStream.emit('error', err)
     },
     close: function () {
-      stream.removeAllListeners()
       curveStream.emit('close')
+      stream.removeAllListeners()
     },
     end: function () {
       curveStream.emit('end')

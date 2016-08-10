@@ -38,8 +38,8 @@ var MessageStream = function (options) {
   this._stream.on('close', function () {
     self.push(null)
     self._cleanup()
-    self._stream.removeAllListeners()
     self.emit('close')
+    self._stream.removeAllListeners()
   })
   this._stream.on('end', function () {
     self.push(null)
