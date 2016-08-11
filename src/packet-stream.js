@@ -19,6 +19,9 @@ var CLIENT_MSG = nacl.util.decodeUTF8('QvnQ5XlM')
 
 var HELLO_WAIT = [1000000000, 1500000000, 2250000000, 3375000000, 5062500000, 7593750000, 11390625000, 17085937500]
 
+var MINUTE_KEY_TIMEOUT = 1000 * 60 * 2
+var INITIATE_TIMEOUT = MINUTE_KEY_TIMEOUT / 2
+
 nacl.setPRNG(function (x, n) {
   var i
   var v = crypto.randomBytes(n)
@@ -27,6 +30,7 @@ nacl.setPRNG(function (x, n) {
 })
 
 var PacketStream = function (opts) {
+  var self = this
   if (!opts) opts = {}
   if (!opts.logger) {
     opts.logger = winston
@@ -73,6 +77,14 @@ var PacketStream = function (opts) {
 }
 
 inherits(PacketStream, Duplex)
+
+PacketStream.prototype._startCookieKeyTimeout = function () {
+  var self = this
+  this.__cookieKey = nacl.randomBytes(nacl.secretbox.keyLength)
+  setTimeout(function () {
+    delete self.__cookieKey
+  }, MINUTE_KEY_TIMEOUT)
+}
 
 PacketStream.prototype.toMetadata = function () {
   return {
@@ -330,8 +342,23 @@ PacketStream.prototype._encryptSymmetric = function (data, prefix, key) {
   nonce.set(shortNonce, prefix.length)
   var box = nacl.secretbox(data, nonce, key)
   var result = new Uint8Array(nonceLength + box.length)
-  result.set(nonce)
+  result.set(shortNonce)
   result.set(box, nonceLength)
+  return result
+}
+
+PacketStream.prototype._decryptSymmetric = function (data, prefix, key) {
+  try {
+    prefix = nacl.util.decodeUTF8(prefix)
+    var nonce_length = 24 - prefix.length
+    var shortNonce = data.subarray(0, nonce_length)
+    var nonce = new Uint8Array(24)
+    nonce.set(prefix)
+    nonce.set(shortNonce, prefix.length)
+    var result = nacl.secretbox.open(data.subarray(nonce_length), nonce, key)
+  } catch (err) {
+    this._log.warn('Decrypt failed with error ' + err)
+  }
   return result
 }
 
@@ -444,15 +471,23 @@ PacketStream.prototype._sendCookie = function () {
   var cookieData = new Uint8Array(64)
   cookieData.set(this.clientConnectionPublicKey)
   cookieData.set(this.serverConnectionPrivateKey, 32)
-  var cookieKey = nacl.randomBytes(nacl.box.publicKeyLength)
-  var serverCookie = this._encryptSymmetric(cookieData, 'minute-k', cookieKey)
-  this.__serverCookie = serverCookie
+  this._startCookieKeyTimeout()
+  var serverCookie = this._encryptSymmetric(cookieData, 'minute-k', this.__cookieKey)
   boxData.set(serverCookie, 32)
   var nonce = this._createRandomNonce('CurveCPK')
   var encryptedBoxData = this._encrypt(boxData, nonce, 8, this.serverPrivateKey, this.clientConnectionPublicKey)
   result.set(encryptedBoxData, 40)
   result = this._setExtensions(result)
   this.stream.write(new Buffer(result))
+}
+
+PacketStream.prototype._isValidCookie = function (cookie) {
+  var cookieData = this._decryptSymmetric(cookie, 'minute-k', this.__cookieKey)
+  if (!cookieData) {
+    return false
+  }
+  return this._isEqual(cookieData.subarray(0, 32), this.clientConnectionPublicKey) &&
+    this._isEqual(cookieData.subarray(32), this.serverConnectionPrivateKey)
 }
 
 PacketStream.prototype._onCookie = function (cookieMessage) {
@@ -518,7 +553,7 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Invalid nonce received')
     return
   }
-  if (!this._isEqual(initiateMessage.subarray(72, 72 + 96), this.__serverCookie)) {
+  if (!this._isValidCookie(initiateMessage.subarray(72, 72 + 96))) {
     this._log.warn('Initiate command server cookie not recognized')
     return
   }
