@@ -80,9 +80,14 @@ var MessageStream = function (options) {
 inherits(MessageStream, Duplex)
 
 MessageStream.prototype._cleanup = function () {
+  var self = this
   this._sendBytes = new Buffer(0)
   _.forEach(this._writeRequests, function (request) {
-    request.callback(new Error('Underlying stream does not respond anymore'))
+    if (_.isFunction(request.callback)) {
+      request.callback(new Error('Underlying stream does not respond anymore'))
+    } else {
+      self._log.error('callback is not a function')
+    }
   })
   this._writeRequests = []
   this._outgoing = []
