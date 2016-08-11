@@ -83,7 +83,7 @@ MessageStream.prototype._cleanup = function () {
   this._sendBytes = new Buffer(0)
   _.forEach(this._writeRequests, function (request) {
     request.callback(new Error('Underlying stream does not respond anymore'))
-  }, this)
+  })
   this._writeRequests = []
   this._outgoing = []
 }
@@ -258,14 +258,14 @@ MessageStream.prototype.processAcknowledgments = function (message) {
   var removedList
   removedList = _.remove(this._outgoing, function (block) {
     return message.isAcknowledged(block.start_byte, block.data.length)
-  }, this)
+  })
   _.forEach(removedList, function (block) {
-    this._log.debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
-    this._chicago.acknowledgement(block.transmission_time)
-  }, this)
+    self._log.debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
+    self._chicago.acknowledgement(block.transmission_time)
+  })
   removedList = _.remove(this._writeRequests, function (writeRequest) {
     return message.isAcknowledged(writeRequest.startByte, writeRequest.length)
-  }, this)
+  })
   _.forEach(removedList, function (writeRequest) {
     self._log.debug('write request acknowledged: ' + writeRequest.startByte + ' - ' + writeRequest.length)
     writeRequest.callback()
