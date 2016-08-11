@@ -61,37 +61,37 @@ Message.prototype.fromBuffer = function (buf) {
   this.data = buf.slice(buf.length - this.data_length)
 }
 
-Message.prototype.isAcknowledged = function (start_byte, length) {
-  return this._inRange1(start_byte, length) ||
-    this._inRange2(start_byte, length) ||
-    this._inRange3(start_byte, length) ||
-    this._inRange4(start_byte, length) ||
-    this._inRange5(start_byte, length) ||
-    this._inRange6(start_byte, length)
+Message.prototype.isAcknowledged = function (startByte, length) {
+  return this._inRange1(startByte, length) ||
+    this._inRange2(startByte, length) ||
+    this._inRange3(startByte, length) ||
+    this._inRange4(startByte, length) ||
+    this._inRange5(startByte, length) ||
+    this._inRange6(startByte, length)
 }
 
-Message.prototype._inRange1 = function (start_byte, length) {
-  return start_byte + length <= this.acknowledging_range_1_size
+Message.prototype._inRange1 = function (startByte, length) {
+  return startByte + length <= this.acknowledging_range_1_size
 }
 
-Message.prototype._inRange2 = function (start_byte, length) {
-  return start_byte >= this._range2Start() && length <= this.acknowledging_range_2_size
+Message.prototype._inRange2 = function (startByte, length) {
+  return startByte >= this._range2Start() && length <= this.acknowledging_range_2_size
 }
 
-Message.prototype._inRange3 = function (start_byte, length) {
-  return start_byte >= this._range3Start() && length <= this.acknowledging_range_3_size
+Message.prototype._inRange3 = function (startByte, length) {
+  return startByte >= this._range3Start() && length <= this.acknowledging_range_3_size
 }
 
-Message.prototype._inRange4 = function (start_byte, length) {
-  return start_byte >= this._range4Start() && length <= this.acknowledging_range_4_size
+Message.prototype._inRange4 = function (startByte, length) {
+  return startByte >= this._range4Start() && length <= this.acknowledging_range_4_size
 }
 
-Message.prototype._inRange5 = function (start_byte, length) {
-  return start_byte >= this._range5Start() && length <= this.acknowledging_range_5_size
+Message.prototype._inRange5 = function (startByte, length) {
+  return startByte >= this._range5Start() && length <= this.acknowledging_range_5_size
 }
 
-Message.prototype._inRange6 = function (start_byte, length) {
-  return start_byte >= this._range6Start() && length <= this.acknowledging_range_6_size
+Message.prototype._inRange6 = function (startByte, length) {
+  return startByte >= this._range6Start() && length <= this.acknowledging_range_6_size
 }
 
 Message.prototype._range2Start = function () {

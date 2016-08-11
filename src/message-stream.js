@@ -172,7 +172,7 @@ MessageStream.prototype.canResend = function () {
   var self = this
   if (this.__streamReady && !_.isEmpty(this._outgoing)) {
     var some = _.some(this._outgoing, function (block) {
-      return self._chicago.block_is_timed_out(block.transmission_time)
+      return self._chicago.block_is_timed_out(block.transmissionTime)
     })
     return some
   }
@@ -183,11 +183,11 @@ MessageStream.prototype.resendBlock = function () {
   this._log.debug('resendBlock')
   var block = this._outgoing[0]
   _.forEach(this._outgoing, function (compareBlock) {
-    if (block.transmission_time.compare(compareBlock) > 0) {
+    if (block.transmissionTime.compare(compareBlock) > 0) {
       block = compareBlock
     }
   })
-  block.transmission_time = this._chicago.get_clock()
+  block.transmissionTime = this._chicago.get_clock()
   block.transmissions = block.transmissions + 1
   block.id = this._nextMessageId()
   this._chicago.retransmission()
@@ -207,8 +207,8 @@ MessageStream.prototype.sendBlock = function () {
     blockSize = this._maxBlockLength
   }
   var block = new Block()
-  block.start_byte = this._sendProcessed
-  block.transmission_time = this._chicago.get_clock()
+  block.startByte = this._sendProcessed
+  block.transmissionTime = this._chicago.get_clock()
   block.id = this._nextMessageId()
   block.data = this._sendBytes.slice(0, blockSize)
   if (this._sendBytes.length === blockSize && (this._stopSuccess || this._stopFailure)) {
@@ -228,14 +228,14 @@ MessageStream.prototype.sendBlock = function () {
 }
 
 MessageStream.prototype._sendBlock = function (block) {
-  this._log.debug('_sendBlock ' + block.start_byte + ' - ' + block.data.length)
+  this._log.debug('_sendBlock ' + block.startByte + ' - ' + block.data.length)
   var message = new Message()
   message.id = block.id
   message.acknowledging_range_1_size = this._receivedBytes
   message.data = block.data
   message.success = block.stop_success
   message.failure = block.stop_failure
-  message.offset = block.start_byte
+  message.offset = block.startByte
   this._chicago.send_block()
   this._writeToStream(message)
   this._maxBlockLength = constants.MESSAGE_BODY
@@ -257,11 +257,11 @@ MessageStream.prototype.processAcknowledgments = function (message) {
   this._log.debug('processAcknowledgements')
   var removedList
   removedList = _.remove(this._outgoing, function (block) {
-    return message.isAcknowledged(block.start_byte, block.data.length)
+    return message.isAcknowledged(block.startByte, block.data.length)
   })
   _.forEach(removedList, function (block) {
-    self._log.debug('block acknowledged: ' + block.start_byte + ' - ' + block.data.length)
-    self._chicago.acknowledgement(block.transmission_time)
+    self._log.debug('block acknowledged: ' + block.startByte + ' - ' + block.data.length)
+    self._chicago.acknowledgement(block.transmissionTime)
   })
   removedList = _.remove(this._writeRequests, function (writeRequest) {
     return message.isAcknowledged(writeRequest.startByte, writeRequest.length)

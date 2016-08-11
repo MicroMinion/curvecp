@@ -11,14 +11,14 @@ Clock.prototype.clone = function () {
 }
 
 Clock.prototype.add = function (nanoseconds) {
-  var seconds_to_add = Number(Number(nanoseconds / constants.SECOND).toString().split('.')[0])
-  var nanoseconds_to_add = nanoseconds % constants.SECOND
-  if (nanoseconds_to_add > constants.SECOND) {
-    seconds_to_add += 1
-    nanoseconds_to_add -= constants.SECOND
+  var secondsToAdd = Number(Number(nanoseconds / constants.SECOND).toString().split('.')[0])
+  var nanosecondsToAdd = nanoseconds % constants.SECOND
+  if (nanosecondsToAdd > constants.SECOND) {
+    secondsToAdd += 1
+    nanosecondsToAdd -= constants.SECOND
   }
-  this.seconds += seconds_to_add
-  this.nanoseconds += nanoseconds_to_add
+  this.seconds += secondsToAdd
+  this.nanoseconds += nanosecondsToAdd
 }
 
 Clock.prototype.subtract = function (clock) {

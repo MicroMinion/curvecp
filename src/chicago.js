@@ -101,12 +101,12 @@ Chicago.prototype.send_block = function () {
 
 /* RETRANSMISSION */
 
-Chicago.prototype.block_is_timed_out = function (transmission_time) {
+Chicago.prototype.block_is_timed_out = function (transmissionTime) {
   this._refresh_clock()
-  var clock = transmission_time.clone()
+  var clock = transmissionTime.clone()
   clock.add(this.rtt_timeout)
-  var compare_result = clock.compare(this.clock)
-  if (compare_result === -1) {
+  var compareResult = clock.compare(this.clock)
+  if (compareResult === -1) {
     return true
   } else {
     return false
@@ -117,23 +117,23 @@ Chicago.prototype.retransmission = function () {
   this._refresh_clock()
   var clock = this.lastpanic.clone()
   clock.add(4 * this.rtt_timeout)
-  var compare_result = this.clock.compare(clock)
-  if (compare_result === 1) {
+  var compareResult = this.clock.compare(clock)
+  if (compareResult === 1) {
     this._halve_transmission_rate()
   }
 }
 
 Chicago.prototype._halve_transmission_rate = function () {
-  this.nsecperblock = utils.safe_integer_multiplication(this.nsecperblock, 2)
+  this.nsecperblock = utils.safeIntegerMultiplication(this.nsecperblock, 2)
   this.lastpanic = this.clock.clone()
   this.lastedge = this.clock.clone()
 }
 
 /* MESSAGE ACKNOWLEDGEMENT */
 
-Chicago.prototype.acknowledgement = function (original_blocktime) {
+Chicago.prototype.acknowledgement = function (originalBlocktime) {
   this._refresh_clock()
-  var rtt = this._initialize_rtt(original_blocktime)
+  var rtt = this._initialize_rtt(originalBlocktime)
   this._jacobson_retransmission_timeout(rtt)
   this._compensate_delayed_acks()
   this._track_watermarks(rtt)
@@ -147,8 +147,8 @@ Chicago.prototype.acknowledgement = function (original_blocktime) {
   this._apply_rate_doubling()
 }
 
-Chicago.prototype._initialize_rtt = function (original_blocktime) {
-  var rtt = this.clock.subtract(original_blocktime)
+Chicago.prototype._initialize_rtt = function (originalBlocktime) {
+  var rtt = this.clock.subtract(originalBlocktime)
   if (!this.rtt_average) {
     this.nsecperblock = rtt
     this.rtt_average = rtt
@@ -161,36 +161,36 @@ Chicago.prototype._initialize_rtt = function (original_blocktime) {
 
 Chicago.prototype._jacobson_retransmission_timeout = function (rtt) {
   /* Jacobon's retransmission timeout calculation */
-  var rtt_delta = rtt - this.rtt_average
-  this.rtt_average = utils.safe_integer_addition(this.rtt_average, rtt_delta / 8)
-  if (rtt_delta < 0) {
-    rtt_delta = -rtt_delta
+  var rttDelta = rtt - this.rtt_average
+  this.rtt_average = utils.safeIntegerAddition(this.rtt_average, rttDelta / 8)
+  if (rttDelta < 0) {
+    rttDelta = -rttDelta
   }
-  rtt_delta -= this.rtt_deviation
-  this.rtt_deviation = utils.safe_integer_addition(this.rtt_deviation, rtt_delta / 4)
-  this.rtt_timeout = utils.safe_integer_addition(this.rtt_average, utils.safe_integer_multiplication(this.rtt_deviation, 4))
+  rttDelta -= this.rtt_deviation
+  this.rtt_deviation = utils.safeIntegerAddition(this.rtt_deviation, rttDelta / 4)
+  this.rtt_timeout = utils.safeIntegerAddition(this.rtt_average, utils.safeIntegerMultiplication(this.rtt_deviation, 4))
 }
 
 Chicago.prototype._compensate_delayed_acks = function () {
   /* adjust for delayed acks with anti-spiking */
-  this.rtt_timeout = utils.safe_integer_addition(this.rtt_timeout, 8 * this.nsecperblock)
+  this.rtt_timeout = utils.safeIntegerAddition(this.rtt_timeout, 8 * this.nsecperblock)
 }
 
 Chicago.prototype._track_watermarks = function (rtt) {
   /* Adjust high watermark of congestion cycle */
-  var rtt_delta = rtt - this.rtt_highwater
-  this.rtt_highwater = utils.safe_integer_addition(this.rtt_highwater, rtt_delta / 1024)
+  var rttDelta = rtt - this.rtt_highwater
+  this.rtt_highwater = utils.safeIntegerAddition(this.rtt_highwater, rttDelta / 1024)
   /* Adjust low watermark of congestion cycle */
-  rtt_delta = rtt - this.rtt_lowwater
-  if (rtt_delta > 0) {
-    this.rtt_lowwater = utils.safe_integer_addition(this.rtt_lowwater, rtt_delta / 8192)
+  rttDelta = rtt - this.rtt_lowwater
+  if (rttDelta > 0) {
+    this.rtt_lowwater = utils.safeIntegerAddition(this.rtt_lowwater, rttDelta / 8192)
   } else {
-    this.rtt_lowwater = utils.safe_integer_addition(this.rtt_lowwater, rtt_delta / 256)
+    this.rtt_lowwater = utils.safeIntegerAddition(this.rtt_lowwater, rttDelta / 256)
   }
 }
 
 Chicago.prototype._check_for_watermarks = function () {
-  if (this.rtt_average > utils.safe_integer_addition(this.rtt_highwater, 5 * constants.MILLISECOND)) {
+  if (this.rtt_average > utils.safeIntegerAddition(this.rtt_highwater, 5 * constants.MILLISECOND)) {
     this.rtt_seenrecenthigh = true
   } else if (this.rtt_average < this.rtt_lowwater) {
     this.rtt_seenrecentlow = true
@@ -199,7 +199,7 @@ Chicago.prototype._check_for_watermarks = function () {
 
 // Start new adjustment cycle (at least 16 tranmsission periods have elapsed)
 Chicago.prototype._adjustment_cycle_has_completed = function () {
-  var cycle = utils.safe_integer_multiplication(this.nsecperblock, 16)
+  var cycle = utils.safeIntegerMultiplication(this.nsecperblock, 16)
   var endOfCycle = new Clock([this.lastspeedadjustment.seconds, this.lastspeedadjustment.nanoseconds])
   endOfCycle.add(cycle)
   var result = this.clock.compare(endOfCycle)
@@ -210,7 +210,7 @@ Chicago.prototype._reinitialize_lastspeedadjustment = function () {
   this._log.debug('_reinitialize_lastspeedadjustment ' + this.nsecperblock)
   if (this.clock.subtract(this.lastspeedadjustment) > 10 * constants.SECOND) {
     this.nsecperblock = constants.SECOND /* slow restart */
-    this.nsecperblock = utils.safe_integer_addition(this.nsecperblock, utils.randommod(this.nsecperblock / 8))
+    this.nsecperblock = utils.safeIntegerAddition(this.nsecperblock, utils.randommod(this.nsecperblock / 8))
   }
   this.lastspeedadjustment = this.clock.clone()
 }
@@ -225,8 +225,8 @@ Chicago.prototype._apply_additive_increase = function () {
     if (this.nsecperblock < 16777216) {
       /* N/(1+cN^2) approx N - cN^3 */
       var u = this.nsecperblock / 131072
-      var u_3 = utils.safe_integer_multiplication(utils.safe_integer_multiplication(u, u), u)
-      this.nsecperblock = this.nsecperblock - u_3
+      var u3 = utils.safeIntegerMultiplication(utils.safeIntegerMultiplication(u, u), u)
+      this.nsecperblock = this.nsecperblock - u3
     } else {
       var d = this.nsecperblock
       this.nsecperblock = d / (1 + ((d * d) / 2251799813685248.0))
@@ -240,7 +240,7 @@ Chicago.prototype._phase_events = function () {
     if (this.rtt_seenolderhigh) {
       this.rtt_phase = 1
       this.lastedge = this.clock
-      this.nsecperblock = utils.safe_integer_addition(this.nsecperblock, utils.randommod(this.nsecperblock / 4))
+      this.nsecperblock = utils.safeIntegerAddition(this.nsecperblock, utils.randommod(this.nsecperblock / 4))
     }
   } else {
     if (this.rtt_seenolderlow) {
@@ -261,22 +261,22 @@ Chicago.prototype._apply_rate_doubling = function () {
   var compareClock
   var result
   while (true) {
-    var n_4 = utils.safe_integer_multiplication(this.nsecperblock, 4)
+    var n4 = utils.safeIntegerMultiplication(this.nsecperblock, 4)
     if (this.clock.subtract(this.lastedge) < 60 * constants.SECOND) {
-      var rto_64 = utils.safe_integer_multiplication(this.rtt_timeout, 64)
+      var rto64 = utils.safeIntegerMultiplication(this.rtt_timeout, 64)
       compareClock = this.lastdoubling.clone()
-      compareClock.add(n_4)
-      compareClock.add(rto_64)
+      compareClock.add(n4)
+      compareClock.add(rto64)
       compareClock.add(5 * constants.SECOND)
       result = this.clock.compare(compareClock)
       if (result === -1) {
         break
       }
     } else {
-      var rto_2 = utils.safe_integer_multiplication(this.rtt_timeout, 2)
+      var rto2 = utils.safeIntegerMultiplication(this.rtt_timeout, 2)
       compareClock = this.lastdoubling.clone()
-      compareClock.add(n_4)
-      compareClock.add(rto_2)
+      compareClock.add(n4)
+      compareClock.add(rto2)
       result = this.clock.compare(compareClock)
       if (result === -1) {
         break

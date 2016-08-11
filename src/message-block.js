@@ -1,8 +1,8 @@
 var Block = function () {
   /* Start byte in stream */
-  this.start_byte = null
+  this.startByte = null
   /* Last transmission time of block */
-  this.transmission_time = 0
+  this.transmissionTime = 0
   /* Number of transmission attempts of this block */
   this.transmissions = 0
   /* ID of last message sending this block */
@@ -15,7 +15,7 @@ var Block = function () {
 }
 
 Block.prototype.includedIn = function (size) {
-  return this.start_byte + this.data.length <= size
+  return this.startByte + this.data.length <= size
 }
 
 module.exports = Block

@@ -20,7 +20,6 @@ var CLIENT_MSG = nacl.util.decodeUTF8('QvnQ5XlM')
 var HELLO_WAIT = [1000000000, 1500000000, 2250000000, 3375000000, 5062500000, 7593750000, 11390625000, 17085937500]
 
 var MINUTE_KEY_TIMEOUT = 1000 * 60 * 2
-var INITIATE_TIMEOUT = MINUTE_KEY_TIMEOUT / 2
 
 nacl.setPRNG(function (x, n) {
   var i
@@ -30,7 +29,6 @@ nacl.setPRNG(function (x, n) {
 })
 
 var PacketStream = function (opts) {
-  var self = this
   if (!opts) opts = {}
   if (!opts.logger) {
     opts.logger = winston
@@ -310,12 +308,12 @@ PacketStream.prototype._decrypt = function (source, prefix, from, to) {
   // debug('decrypt')
   try {
     prefix = nacl.util.decodeUTF8(prefix)
-    var nonce_length = 24 - prefix.length
-    var short_nonce = source.subarray(0, nonce_length)
+    var nonceLength = 24 - prefix.length
+    var shortNonce = source.subarray(0, nonceLength)
     var nonce = new Uint8Array(24)
     nonce.set(prefix)
-    nonce.set(short_nonce, prefix.length)
-    var result = nacl.box.open(source.subarray(nonce_length), nonce, from, to)
+    nonce.set(shortNonce, prefix.length)
+    var result = nacl.box.open(source.subarray(nonceLength), nonce, from, to)
   } catch (err) {
     this._log.warn('Decrypt failed with error ' + err)
   }
@@ -326,8 +324,8 @@ PacketStream.prototype._encrypt = function (data, nonce, prefixLength, from, to)
   // debug('encrypt')
   var box = nacl.box(data, nonce, to, from)
   var result = new Uint8Array(24 - prefixLength + box.length)
-  var short_nonce = nonce.subarray(prefixLength)
-  result.set(short_nonce)
+  var shortNonce = nonce.subarray(prefixLength)
+  result.set(shortNonce)
   result.set(box, 24 - prefixLength)
   return result
 }
@@ -350,12 +348,12 @@ PacketStream.prototype._encryptSymmetric = function (data, prefix, key) {
 PacketStream.prototype._decryptSymmetric = function (data, prefix, key) {
   try {
     prefix = nacl.util.decodeUTF8(prefix)
-    var nonce_length = 24 - prefix.length
-    var shortNonce = data.subarray(0, nonce_length)
+    var nonceLength = 24 - prefix.length
+    var shortNonce = data.subarray(0, nonceLength)
     var nonce = new Uint8Array(24)
     nonce.set(prefix)
     nonce.set(shortNonce, prefix.length)
-    var result = nacl.secretbox.open(data.subarray(nonce_length), nonce, key)
+    var result = nacl.secretbox.open(data.subarray(nonceLength), nonce, key)
   } catch (err) {
     this._log.warn('Decrypt failed with error ' + err)
   }
