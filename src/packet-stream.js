@@ -72,6 +72,11 @@ var PacketStream = function (opts) {
     this.serverName = buffer
   // this.serverName = new Uint8Array(buffer)
   }
+  if (!this.isServer) {
+    var keyPair = nacl.box.keyPair()
+    this.clientConnectionPublicKey = keyPair.publicKey
+    this.clientConnectionPrivateKey = keyPair.secretKey
+  }
   this._connectStream(this.stream)
 }
 
@@ -432,9 +437,6 @@ PacketStream.prototype._sendHello = function () {
   var self = this
   this._setCanSend(false)
   this.__initiateSend = false
-  var keyPair = nacl.box.keyPair()
-  this.clientConnectionPublicKey = keyPair.publicKey
-  this.clientConnectionPrivateKey = keyPair.secretKey
   var result = new Uint8Array(224)
   result.set(HELLO_MSG, 0)
   result.set(this.clientConnectionPublicKey, 40)
