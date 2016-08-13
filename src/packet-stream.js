@@ -134,7 +134,6 @@ PacketStream.prototype._connectStream = function (stream) {
     },
     close: function () {
       curveStream.emit('close')
-      stream.removeAllListeners()
     },
     end: function () {
       curveStream.emit('end')

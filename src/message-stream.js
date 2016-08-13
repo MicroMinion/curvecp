@@ -39,7 +39,6 @@ var MessageStream = function (options) {
     self.push(null)
     self._cleanup()
     self.emit('close')
-    self._stream.removeAllListeners()
   })
   this._stream.on('end', function () {
     self.push(null)
@@ -80,13 +79,12 @@ var MessageStream = function (options) {
 inherits(MessageStream, Duplex)
 
 MessageStream.prototype._cleanup = function () {
-  this._sendBytes = new Buffer(0)
-  _.forEach(this._writeRequests, function (request) {
-    setImmediate(function () {
-      request.callback(new Error('Underlying stream does not respond anymore'))
-    })
-  })
+  var writeRequests = this._writeRequests
   this._writeRequests = []
+  this._sendBytes = new Buffer(0)
+  _.forEach(writeRequests, function (request) {
+    request.callback(new Error('Underlying stream does not respond anymore'))
+  })
   this._outgoing = []
 }
 
