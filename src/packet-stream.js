@@ -44,6 +44,7 @@ var PacketStream = function (opts) {
   this.__remoteNonceCounter = 0
   this.__helloCounter = 0
   this.__state = null
+  this.__sharedKey = null
   Duplex.call(this, opts)
   extend(this, {
     __canSend: false,
@@ -319,9 +320,33 @@ PacketStream.prototype._decrypt = function (source, prefix, from, to) {
   return result
 }
 
+PacketStream.prototype._decryptShared = function (source, prefix) {
+  try {
+    prefix = nacl.util.decodeUTF8(prefix)
+    var nonceLength = 24 - prefix.length
+    var shortNonce = source.subarray(0, nonceLength)
+    var nonce = new Uint8Array(24)
+    nonce.set(prefix)
+    nonce.set(shortNonce, prefix.length)
+    var result = nacl.box.open.after(source.subarray(nonceLength), nonce, this.__sharedKey)
+  } catch (err) {
+    this._log.warn('Decrypt failed with error ' + err)
+  }
+  return result
+}
+
 PacketStream.prototype._encrypt = function (data, nonce, prefixLength, from, to) {
   // debug('encrypt')
   var box = nacl.box(data, nonce, to, from)
+  var result = new Uint8Array(24 - prefixLength + box.length)
+  var shortNonce = nonce.subarray(prefixLength)
+  result.set(shortNonce)
+  result.set(box, 24 - prefixLength)
+  return result
+}
+
+PacketStream.prototype._encryptShared = function (data, nonce, prefixLength) {
+  var box = nacl.box.after(data, nonce, this.__sharedKey)
   var result = new Uint8Array(24 - prefixLength + box.length)
   var shortNonce = nonce.subarray(prefixLength)
   result.set(shortNonce)
@@ -461,6 +486,7 @@ PacketStream.prototype._sendCookie = function () {
   var keyPair = nacl.box.keyPair()
   this.serverConnectionPublicKey = keyPair.publicKey
   this.serverConnectionPrivateKey = keyPair.secretKey
+  this.__sharedKey = nacl.box.before(this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
   var result = new Uint8Array(200)
   result.set(COOKIE_MSG)
   var boxData = new Uint8Array(128)
@@ -500,6 +526,7 @@ PacketStream.prototype._onCookie = function (cookieMessage) {
     return
   }
   this.serverConnectionPublicKey = boxData.subarray(0, 32)
+  this.__sharedKey = nacl.box.before(this.serverConnectionPublicKey, this.clientConnectionPrivateKey)
   this.__serverCookie = boxData.subarray(32)
   if (this.__serverCookie.length !== 96) {
     this._log.warn('Server cookie invalid')
@@ -527,7 +554,7 @@ PacketStream.prototype._sendInitiate = function (message, done) {
   initiateBoxData.set(this.serverName, 96)
   initiateBoxData.set(message, 352)
   var nonce = this._createNonceFromCounter('CurveCP-client-I')
-  result.set(this._encrypt(initiateBoxData, nonce, 16, this.clientConnectionPrivateKey, this.serverConnectionPublicKey), 168)
+  result.set(this._encryptShared(initiateBoxData, nonce, 16), 168)
   result = this._setExtensions(result)
   this.stream.write(new Buffer(result), done)
   this.__initiateSend = true
@@ -554,7 +581,7 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Initiate command server cookie not recognized')
     return
   }
-  var initiateBoxData = this._decrypt(initiateMessage.subarray(72 + 96), 'CurveCP-client-I', this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
+  var initiateBoxData = this._decryptShared(initiateMessage.subarray(72 + 96), 'CurveCP-client-I')
   if (initiateBoxData === undefined) {
     this._log.warn('Not able to decrypt initiate box data')
     return
@@ -581,7 +608,7 @@ PacketStream.prototype._sendServerMessage = function (message, done) {
   var result = new Uint8Array(64 + message.length)
   result.set(SERVER_MSG)
   var nonce = this._createNonceFromCounter('CurveCP-server-M')
-  var messageBox = this._encrypt(message, nonce, 16, this.serverConnectionPrivateKey, this.clientConnectionPublicKey)
+  var messageBox = this._encryptShared(message, nonce, 16)
   result.set(messageBox, 8 + 16 + 16)
   result = this._setExtensions(result)
   this.stream.write(new Buffer(result), done)
@@ -597,7 +624,7 @@ PacketStream.prototype._onServerMessage = function (message) {
     this._log.warn('Invalid nonce received')
     return
   }
-  var boxData = this._decrypt(message.subarray(40), 'CurveCP-server-M', this.serverConnectionPublicKey, this.clientConnectionPrivateKey)
+  var boxData = this._decryptShared(message.subarray(40), 'CurveCP-server-M')
   if (boxData === undefined || !boxData) {
     this._log.warn('not able to decrypt box data')
     return
@@ -614,7 +641,7 @@ PacketStream.prototype._sendClientMessage = function (message, done) {
   var result = new Uint8Array(96 + message.length)
   result.set(CLIENT_MSG)
   var nonce = this._createNonceFromCounter('CurveCP-client-M')
-  var messageBox = this._encrypt(message, nonce, 16, this.clientConnectionPrivateKey, this.serverConnectionPublicKey)
+  var messageBox = this._encryptShared(message, nonce, 16)
   result.set(messageBox, 8 + 16 + 16 + 32)
   result = this._setExtensions(result)
   this.stream.write(new Buffer(result), done)
@@ -630,7 +657,7 @@ PacketStream.prototype._onClientMessage = function (message) {
     this._log.warn('Invalid nonce received')
     return
   }
-  var boxData = this._decrypt(message.subarray(40 + 32), 'CurveCP-client-M', this.clientConnectionPublicKey, this.serverConnectionPrivateKey)
+  var boxData = this._decryptShared(message.subarray(40 + 32), 'CurveCP-client-M')
   if (boxData === undefined || !boxData) {
     this._log.warn('not able to decrypt box data')
     return
