@@ -602,7 +602,10 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Initiate command vouch contains different client connection public key than previously received')
     return
   }
-  // TODO: Check for valid server name
+  if (!this._isEqual(initiateBoxData.subarray(32 + 16 + 48, 32 + 16 + 48 + 256), this.serverName)) {
+    this._log.warn('Invalid server name')
+    return
+  }
   this._setCanSend(true)
   this.emit('connect')
   this.push(new Buffer(initiateBoxData.subarray(32 + 16 + 48 + 256)))
