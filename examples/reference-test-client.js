@@ -1,66 +1,47 @@
-var dgram = require('dgram')
+var net = require('net-udp')
 var PacketStream = require('../src/packet-stream.js')
 var MessageStream = require('../src/message-stream.js')
 var nacl = require('tweetnacl')
+nacl.util = require('tweetnacl-util')
 var events = require('events')
 var inherits = require('inherits')
+var winston = require('winston')
+var winstonWrapper = require('winston-meta-wrapper')
+
+var logger = new winston.Logger({
+  transports: [
+    new winston.transports.Console({
+      level: 'debug',
+      timestamp: true,
+      logstash: false
+    })
+  ]
+})
+logger = winstonWrapper(logger)
 
 var keypair = nacl.box.keyPair()
-
-var UDPStream = function () {
-  var stream = this
-  this.socket = dgram.createSocket('udp4')
-  this.socket.bind(0)
-  this.socket.on('close', function () {
-    stream.emit('close')
-  })
-  this.socket.on('error', function (error) {
-    stream.emit('error', error)
-  })
-  this.socket.on('listening', function () {
-    console.log('listening')
-    messageStream.connect()
-  })
-  this.socket.on('message', function (msg, rinfo) {
-    stream.emit('data', msg)
-  })
-  events.EventEmitter.call(this)
-}
-
-inherits(UDPStream, events.EventEmitter)
-
-UDPStream.prototype.destroy = function () {
-  this.socket.close()
-}
-
-UDPStream.prototype.write = function (buffer) {
-  var callback_ = function (err) {
-    console.log('callback')
-    console.log(err)
-  }
-  this.socket.send(buffer, 0, buffer.length, process.env.SERVER_PORT, process.env.SERVER_ADDRESS, callback_)
-}
-
-var connection = new UDPStream()
+var connection = new net.Socket()
 
 var packetStream = new PacketStream({
   stream: connection,
+  logger: logger,
   is_server: false,
-  serverName: process.env.SERVER_NAME,
-  serverPublicKey: nacl.util.decodeBase64(process.env.SERVER_KEY),
+  serverName: process.env.SERVER_HOSTNAME,
   clientPublicKey: keypair.publicKey,
   clientPrivateKey: keypair.secretKey
 })
 
-var messageStream = new MessageStream(packetStream)
+var messageStream = new MessageStream({
+  stream: packetStream,
+  logger: logger
+})
 
 messageStream.on('connect', function () {
-  console.log('connected')
-  messageStream.write('test\n')
+  console.log('messagestream connected')
 })
 messageStream.on('data', function (data) {
   console.log('data')
-  console.log(data)
+  console.log(data.toString())
 })
 
 messageStream.on('error', function (error) {
@@ -70,4 +51,10 @@ messageStream.on('error', function (error) {
 
 messageStream.on('close', function () {
   console.log('close')
+})
+
+var boxId = nacl.util.encodeBase64(new Uint8Array(new Buffer(process.env.SERVER_KEY, 'hex')))
+messageStream.connect(boxId, {
+  addresses: [process.env.SERVER_IP],
+  port: parseInt(process.env.SERVER_PORT, 10)
 })
