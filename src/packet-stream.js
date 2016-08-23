@@ -678,6 +678,7 @@ PacketStream.prototype._onClientMessage = function (message) {
     return
   }
   var buffer = new Buffer(boxData)
+  this._setCanSend(true)
   this.push(buffer)
 }
 
