@@ -44,8 +44,15 @@ var MessageStream = function (options) {
     self.push(null)
   })
   this._stream.on('connect', function () {
-    self.__streamReady = true
-    self.emit('connect')
+    var message = new Message()
+    self._stream.write(message.toBuffer(), function (err) {
+      if (!err) {
+        self.__streamReady = true
+        self.emit('connect')
+      } else {
+        // TODO: Signal error?
+      }
+    })
   })
   this._stream.on('lookup', function (err, address, family) {
     self.emit('lookup', err, address, family)
@@ -310,6 +317,7 @@ MessageStream.prototype._processReady = function (err) {
   if (!err) {
     this.__streamReady = true
   } else {
+    // TODO: Signal error upstream?
     this._log.warn('error while sending CurveCP message')
   }
 }
