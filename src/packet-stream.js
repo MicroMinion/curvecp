@@ -154,7 +154,7 @@ PacketStream.prototype._connectStream = function (stream) {
       if (curveStream.isConnected()) {
         curveStream.emit('timeout')
       } else {
-        // TODO: Trigger resend of hello or initiate packet
+        curveStream.emit('error', new Error('Timeout expired to establish connection'))
       }
     }
   }
