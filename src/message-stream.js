@@ -105,7 +105,12 @@ MessageStream.prototype._receiveData = function (data) {
   this._log.debug('_receiveData')
   if (_.size(this._incoming) < constants.MAX_INCOMING) {
     var message = new Message()
-    message.fromBuffer(data)
+    try {
+      message.fromBuffer(data)
+    } catch (e) {
+      this._log.warn('Invalid message received')
+      return
+    }
     this._incoming.push(message)
   }
   var self = this

@@ -1,9 +1,12 @@
 var Uint64BE = require('int64-buffer').Uint64BE
 var assert = require('assert')
 
-var MAX_MESSAGE_SIZE = 1088
 var MINIMAL_PADDING = 16
 var HEADER_SIZE = 48
+
+var MIN_MESSAGE_SIZE = MINIMAL_PADDING + HEADER_SIZE
+var MAX_MESSAGE_SIZE = 1088
+var MAX_BODY_SIZE = MAX_MESSAGE_SIZE - MIN_MESSAGE_SIZE
 
 var STOP_SUCCESS = 2048
 var STOP_FAILURE = 4096
@@ -28,6 +31,9 @@ var Message = function () {
 }
 
 Message.prototype.fromBuffer = function (buf) {
+  if (buf.length < MIN_MESSAGE_SIZE || buf.length > MAX_MESSAGE_SIZE) {
+    throw new Error('Invalid message size')
+  }
   this.id = buf.readUInt32LE()
   this.acknowledging_id = buf.readUInt32LE(4)
   this.acknowledging_range_1_size = new Buffer(8)
@@ -48,6 +54,9 @@ Message.prototype.fromBuffer = function (buf) {
   this.acknowledging_range_56_gap = buf.readUInt16LE(34)
   this.acknowledging_range_6_size = buf.readUInt16LE(36)
   this.flags = buf.readUInt16LE(38)
+  if (!this._validFlags(this.flags)) {
+    throw new Error('Invalid flags')
+  }
   this.offset = new Buffer(8)
   buf.copy(this.offset, 0, 40)
   this.offset.reverse()
@@ -58,7 +67,16 @@ Message.prototype.fromBuffer = function (buf) {
   this.data_length = this.flags - (this.flags & STOP)
   this.success = Boolean((this.flags - this.data_length) & STOP_SUCCESS)
   this.failure = Boolean((this.flags - this.data_length) & STOP_FAILURE)
+  if (buf.length < MIN_MESSAGE_SIZE + this._data_length) {
+    throw new Error('Advertised data not included in message')
+  }
   this.data = buf.slice(buf.length - this.data_length)
+}
+
+Message.prototype._validFlags = function (flags) {
+  return (flags >= 0 && flags <= MAX_BODY_SIZE) ||
+    (flags >= STOP_SUCCESS && flags <= STOP_SUCCESS + MAX_BODY_SIZE) ||
+    (flags >= STOP_FAILURE && flags <= STOP_FAILURE + MAX_BODY_SIZE)
 }
 
 Message.prototype.isAcknowledged = function (startByte, length) {
