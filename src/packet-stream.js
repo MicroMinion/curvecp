@@ -400,6 +400,24 @@ PacketStream.prototype._setExtensions = function (array) {
   return array
 }
 
+PacketStream.prototype._validExtensions = function (array) {
+  if (this.isServer) {
+    return this._validServerExtension(array.subarray(8, 8 + 16)) &&
+      this._validClientExtension(array.subarray(8 + 16, 8 + 16 + 16))
+  } else {
+    return this._validClientExtension(array.subarray(8, 8 + 16)) &&
+      this._validServerExtension(array.subarray(8 + 16, 8 + 16 + 16))
+  }
+}
+
+PacketStream.prototype._validServerExtension = function (extension) {
+  return this._isEqual(extension, this.serverExtension)
+}
+
+PacketStream.prototype._validClientExtension = function (extension) {
+  return this._isEqual(extension, this.clientExtension)
+}
+
 PacketStream.prototype._createNonceFromCounter = function (prefix) {
   this._increaseCounter()
   var nonce = new Uint8Array(24)
@@ -463,6 +481,11 @@ PacketStream.prototype._onHello = function (helloMessage) {
     this._log.warn('Hello message has incorrect length')
     return
   }
+  this.clientExtension = helloMessage.subarray(8 + 16, 8 + 16 + 16)
+  if (!this._validServerExtension(helloMessage.subarray(8, 8 + 16))) {
+    this._log.warn('Invalid server extension in hello message')
+    return
+  }
   this.clientConnectionPublicKey = helloMessage.subarray(40, 40 + 32)
   if (!this.__validNonce(helloMessage, 40 + 32 + 64)) {
     this._log.warn('Invalid nonce received')
@@ -522,6 +545,10 @@ PacketStream.prototype._onCookie = function (cookieMessage) {
     this._log.warn('Cookie message has incorrect length')
     return
   }
+  if (!this._validExtensions(cookieMessage)) {
+    this._log.warn('Invalid extensions')
+    return
+  }
   var boxData = this._decrypt(cookieMessage.subarray(40, 200), 'CurveCPK', this.serverPublicKey, this.clientConnectionPrivateKey)
   if (boxData === undefined || !boxData) {
     this._log.warn('Not able to decrypt cookie box data')
@@ -579,6 +606,10 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Invalid client connection key')
     return
   }
+  if (!this._validExtensions(initiateMessage)) {
+    this._log.warn('Invalid extensions')
+    return
+  }
   if (!this.__validNonce(initiateMessage, 72 + 96)) {
     this._log.warn('Invalid nonce received')
     return
@@ -630,6 +661,10 @@ PacketStream.prototype._onServerMessage = function (message) {
     this._log.warn('Message command has incorrect length')
     return
   }
+  if (!this._validExtensions(message)) {
+    this._log.warn('Invalid extensions')
+    return
+  }
   if (!this.__validNonce(message, 40)) {
     this._log.warn('Invalid nonce received')
     return
@@ -662,6 +697,10 @@ PacketStream.prototype._onClientMessage = function (message) {
   this._log.debug('onClientMessage@Server ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   if (message.length < 96 || message.length > 1184) {
     this._log.warn('Message command has incorrect length')
+    return
+  }
+  if (!this._validExtensions(message)) {
+    this._log.warn('Invalid extensions')
     return
   }
   if (!this._isEqual(message.subarray(40, 40 + 32), this.clientConnectionPublicKey)) {
