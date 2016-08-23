@@ -50,7 +50,7 @@ var MessageStream = function (options) {
         self.__streamReady = true
         self.emit('connect')
       } else {
-        // TODO: Signal error?
+        self.emit('error', err)
       }
     })
   })
@@ -317,8 +317,8 @@ MessageStream.prototype._processReady = function (err) {
   if (!err) {
     this.__streamReady = true
   } else {
-    // TODO: Signal error upstream?
     this._log.warn('error while sending CurveCP message')
+    this.emit('error', err)
   }
 }
 
