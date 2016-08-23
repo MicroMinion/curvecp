@@ -181,14 +181,6 @@ PacketStream.prototype._onMessageClient = function (message) {
   if (message.length < 64 || message.length > 1152) {
     return
   }
-  if (!this._isEqual(this.clientExtension, message.subarray(8, 24))) {
-    this._log.warn('invalid clientExtension')
-    return
-  }
-  if (!this._isEqual(this.serverExtension, message.subarray(24, 40))) {
-    this._log.warn('invalid serverExtension')
-    return
-  }
   var messageType = message.subarray(0, 8)
   if (this._isEqual(messageType, COOKIE_MSG)) {
     this._onCookie(message)
@@ -205,14 +197,6 @@ PacketStream.prototype._onMessageClient = function (message) {
 PacketStream.prototype._onMessageServer = function (message) {
   this._log.debug('_onMessage@Server')
   if (message.length < 96 || message.length > 1184) {
-    return
-  }
-  if (!this._isEqual(this.clientExtension, message.subarray(24, 40))) {
-    this._log.warn('invalid clientExtension')
-    return
-  }
-  if (!this._isEqual(this.serverExtension, message.subarray(8, 24))) {
-    this._log.warn('invalid serverExtension')
     return
   }
   var messageType = message.subarray(0, 8)
