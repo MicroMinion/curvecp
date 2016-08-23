@@ -68,9 +68,9 @@ var PacketStream = function (opts) {
   if (this.serverName.length !== 256) {
     var buffer = new Buffer(256)
     buffer.fill(0)
-    buffer.write(this.serverName)
-    this.serverName = buffer
-  // this.serverName = new Uint8Array(buffer)
+    buffer.write('0A', 'hex')
+    buffer.write(this.serverName, 1)
+    this.serverName = new Uint8Array(buffer)
   }
   if (!this.isServer) {
     var keyPair = nacl.box.keyPair()
@@ -575,6 +575,10 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Initiate command has incorrect length')
     return
   }
+  if (!this._isEqual(initiateMessage.subarray(40, 40 + 32), this.clientConnectionPublicKey)) {
+    this._log.warn('Invalid client connection key')
+    return
+  }
   if (!this.__validNonce(initiateMessage, 72 + 96)) {
     this._log.warn('Invalid nonce received')
     return
@@ -598,6 +602,7 @@ PacketStream.prototype._onInitiate = function (initiateMessage) {
     this._log.warn('Initiate command vouch contains different client connection public key than previously received')
     return
   }
+  // TODO: Check for valid server name
   this._setCanSend(true)
   this.emit('connect')
   this.push(new Buffer(initiateBoxData.subarray(32 + 16 + 48 + 256)))
@@ -642,6 +647,7 @@ PacketStream.prototype._sendClientMessage = function (message, done) {
   this._log.debug('sendClientMessage ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   var result = new Uint8Array(96 + message.length)
   result.set(CLIENT_MSG)
+  result.set(this.clientConnectionPublicKey, 40)
   var nonce = this._createNonceFromCounter('CurveCP-client-M')
   var messageBox = this._encryptShared(message, nonce, 16)
   result.set(messageBox, 8 + 16 + 16 + 32)
@@ -653,6 +659,10 @@ PacketStream.prototype._onClientMessage = function (message) {
   this._log.debug('onClientMessage@Server ' + nacl.util.encodeBase64(this.clientPublicKey) + ' > ' + nacl.util.encodeBase64(this.serverPublicKey))
   if (message.length < 96 || message.length > 1184) {
     this._log.warn('Message command has incorrect length')
+    return
+  }
+  if (!this._isEqual(message.subarray(40, 40 + 32), this.clientConnectionPublicKey)) {
+    this._log.warn('Invalid client connection key')
     return
   }
   if (!this.__validNonce(message, 40 + 32)) {
