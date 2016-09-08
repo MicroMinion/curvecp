@@ -3,8 +3,6 @@ var PacketStream = require('../src/packet-stream.js')
 var MessageStream = require('../src/message-stream.js')
 var nacl = require('tweetnacl')
 nacl.util = require('tweetnacl-util')
-var events = require('events')
-var inherits = require('inherits')
 var winston = require('winston')
 var winstonWrapper = require('winston-meta-wrapper')
 
