@@ -1,4 +1,6 @@
 var hrtime = require('browser-process-hrtime')
+process.hrtime = hrtime
+global.setImmediate = require('async.util.setimmediate')
 var winston = require('winston')
 var winstonWrapper = require('winston-meta-wrapper')
 var NanoTimer = require('nanotimer')
