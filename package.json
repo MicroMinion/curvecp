@@ -17,6 +17,7 @@
   "author": "Thomas Delaet <thomas@delaet.org>",
   "license": "MIT",
   "dependencies": {
+    "async.util.setimmediate": "^0.5.2",
     "browser-process-hrtime": "0.1.2",
     "extend.js": "0.0.2",
     "inherits": "2.0.1",
