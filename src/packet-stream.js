@@ -242,7 +242,7 @@ PacketStream.prototype.setDestination = function (destination) {
 }
 
 PacketStream.prototype.isConnected = function () {
-  return this.__canSend
+  return this.stream.isConnected() && this.__sharedKey
 }
 
 PacketStream.prototype.destroy = function () {
