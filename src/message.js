@@ -34,7 +34,7 @@ Message.prototype.fromBuffer = function (buf) {
   if (buf.length < MIN_MESSAGE_SIZE || buf.length > MAX_MESSAGE_SIZE) {
     throw new Error('Invalid message size')
   }
-  this.id = buf.readUInt32LE()
+  this.id = buf.readUInt32LE(0)
   this.acknowledging_id = buf.readUInt32LE(4)
   this.acknowledging_range_1_size = new Buffer(8)
   buf.copy(this.acknowledging_range_1_size, 0, 8)
